@@ -1,0 +1,350 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #0ea5e9;
+  --accent-gold: #f5c518;
+  --accent-emerald: #10b981;
+  --surface-dark: #0f172a;
+  --surface-darker: #020617;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Dark Mode (Default) */
+.dark body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--surface-darker);
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+/* Light Mode */
+.light body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar - Dark */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--surface-dark);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Custom Scrollbar - Light */
+.light ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Glass Effect - Dark */
+.dark .glass {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+/* Glass Effect - Light */
+.light .glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-gold {
+  background: linear-gradient(135deg, #f5c518, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card Hover Effect */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+}
+
+.dark .card-hover:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.light .card-hover:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Glow Effects */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px rgba(245, 197, 24, 0.3);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+/* Input Focus Styles */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* Number Input without spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Chart Container - Dark */
+.dark .chart-container {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.5) 0%, rgba(2, 6, 23, 0.8) 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* Chart Container - Light */
+.light .chart-container {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.8) 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* Pulse Animation for Live Data */
+@keyframes live-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.live-indicator {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Table Styles - Dark */
+.dark .table-row-hover:hover {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+/* Table Styles - Light */
+.light .table-row-hover:hover {
+  background: rgba(241, 245, 249, 0.8);
+}
+
+/* Badge Styles */
+.badge {
+  @apply px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.badge-success {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.badge-warning {
+  @apply bg-amber-500/20 text-amber-400;
+}
+
+.badge-danger {
+  @apply bg-red-500/20 text-red-400;
+}
+
+.badge-info {
+  @apply bg-blue-500/20 text-blue-400;
+}
+
+/* Button Base */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2;
+}
+
+.btn-primary {
+  @apply bg-primary-600 hover:bg-primary-700 text-white;
+}
+
+.btn-secondary {
+  @apply bg-surface-card hover:bg-surface-border text-white border border-surface-border;
+}
+
+.btn-gold {
+  @apply bg-accent-gold hover:bg-amber-500 text-black font-semibold;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white;
+}
+
+/* Light mode surface colors */
+.light .bg-surface-darker {
+  background-color: #f8fafc;
+}
+
+.light .bg-surface-dark {
+  background-color: #f1f5f9;
+}
+
+.light .bg-surface-card {
+  background-color: #ffffff;
+}
+
+.light .border-surface-border {
+  border-color: #e2e8f0;
+}
+
+.light .text-white {
+  color: #0f172a;
+}
+
+.light .text-slate-400 {
+  color: #64748b;
+}
+
+.light .text-slate-300 {
+  color: #475569;
+}
+
+.light .text-slate-500 {
+  color: #94a3b8;
+}
+
+/* Centered Wireframe Layout */
+.wireframe-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.wireframe-card {
+  @apply rounded-2xl p-6 transition-all duration-200;
+}
+
+.dark .wireframe-card {
+  @apply bg-surface-card border border-surface-border;
+}
+
+.light .wireframe-card {
+  @apply bg-white border border-gray-200 shadow-sm;
+}
+
+/* Centered Grid Layout */
+.centered-grid {
+  @apply grid gap-6 max-w-6xl mx-auto;
+}
+
+/* Stock Status Colors */
+.stock-high {
+  @apply text-emerald-500;
+}
+
+.stock-medium {
+  @apply text-amber-500;
+}
+
+.stock-low {
+  @apply text-red-500;
+}
+
+.stock-out {
+  @apply text-slate-500;
+}
+
+/* Progress Bar Styles */
+.progress-bar {
+  @apply h-2 rounded-full overflow-hidden;
+}
+
+.dark .progress-bar {
+  @apply bg-surface-dark;
+}
+
+.light .progress-bar {
+  @apply bg-gray-200;
+}
+
+.progress-fill {
+  @apply h-full rounded-full transition-all duration-500;
+}
+
+/* Wireframe Section */
+.wireframe-section {
+  @apply py-6;
+}
+
+.wireframe-section-header {
+  @apply flex items-center justify-between mb-6;
+}
+
+.wireframe-section-title {
+  @apply text-xl font-semibold;
+}
+
+/* Chat Bubble Animation */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-animate {
+  animation: message-in 0.2s ease-out;
+}

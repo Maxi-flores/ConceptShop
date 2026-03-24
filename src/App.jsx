@@ -1,0 +1,144 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from './context/AuthContext'
+import MainLayout from './components/MainLayout'
+import ChatWidget from './components/ChatWidget'
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import DashboardPage from './pages/DashboardPage'
+import ProductsPage from './pages/ProductsPage'
+import OrdersPage from './pages/OrdersPage'
+import StakeholdersPage from './pages/StakeholdersPage'
+import MarketingPage from './pages/MarketingPage'
+import ForecastingPage from './pages/ForecastingPage'
+import ShippingPage from './pages/ShippingPage'
+import StockPage from './pages/StockPage'
+import SettingsPage from './pages/SettingsPage'
+import InvitePage from './pages/InvitePage'
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-darker">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  return children
+}
+
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-darker">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      </div>
+    )
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
+}
+
+export default function App() {
+  return (
+    <>
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/invite/:code" element={<InvitePage />} />
+      <Route path="/login" element={
+        <PublicRoute>
+          <LoginPage />
+        </PublicRoute>
+      } />
+      <Route path="/register/:inviteCode" element={
+        <PublicRoute>
+          <RegisterPage />
+        </PublicRoute>
+      } />
+
+      {/* Protected Routes */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <DashboardPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/products" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ProductsPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/orders" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <OrdersPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/stakeholders" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <StakeholdersPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/marketing" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <MarketingPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/forecasting" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ForecastingPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/shipping" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <ShippingPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/stock" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <StockPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <SettingsPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+    <ChatWidget />
+    </>
+  )
+}
