@@ -4,6 +4,7 @@
   "description": "Shared product orders, stakeholder management, and price forecasting platform",
   "type": "module",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
