@@ -617,13 +617,24 @@ export const getUserProfile = async (userId) => {
   } catch (error) {
     console.error('Error getting user profile:', error)
     const code = error?.code || error?.name
+
     if (code === 'permission-denied') {
-      throw asFriendlyError({ code: 'permission-denied' }, 'Firestore permission denied while reading your profile. Please try again or contact support.', 'permission-denied')
+      throw asFriendlyError(
+        { code: 'permission-denied' },
+        'Firestore permission denied while reading your profile. Please try again or contact support.',
+        'permission-denied'
+      )
     }
-    if (code === 'unavailable' || code === 'deadline-exceeded' || code === 'auth/network-request-failed' || String(error?.message || '').toLowerCase().includes('network')) {
-      throw asFriendlyError({ code: 'auth/network-request-failed' }, 'Network error while reading your Firestore profile. Please try again.', 'auth/network-request-failed')
+
+    if (code === 'unavailable' || code === 'deadline-exceeded' || code === 'auth/network-request-failed') {
+      throw asFriendlyError(
+        { code: 'auth/network-request-failed' },
+        'Network error while reading your Firestore profile. Please try again.',
+        'auth/network-request-failed'
+      )
     }
-    throw error
+
+    throw asFriendlyError(error, 'Failed to read your Firestore profile. Please try again.', code)
   }
 }
 
