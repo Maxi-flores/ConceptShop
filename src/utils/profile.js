@@ -10,6 +10,9 @@ const normalizeMap = (value, fallback = {}) => {
 
 export const normalizeUserProfile = (profile = {}) => {
   const completedTutorials = normalizeMap(profile.completedTutorials, {})
+  const emailPipeline = normalizeMap(profile.emailPipeline, {})
+  const integrations = normalizeMap(profile.integrations, {})
+  const paymentMethodSummary = normalizeMap(profile.paymentMethodSummary, {})
 
   return {
     ...profile,
@@ -25,6 +28,12 @@ export const normalizeUserProfile = (profile = {}) => {
     memberLimit: Number.isFinite(profile.memberLimit) ? profile.memberLimit : 0,
     onboardingCompleted: Boolean(profile.onboardingCompleted),
     completedTutorials,
+    workspaceName: profile.workspaceName || '',
+    businessName: profile.businessName || '',
+    logoUrl: profile.logoUrl || '',
+    emailPipeline,
+    integrations,
+    paymentMethodSummary,
     createdAt: profile.createdAt || null,
     updatedAt: profile.updatedAt || null
   }
@@ -60,6 +69,47 @@ export const getAccountTierLabel = (profile) => {
   }
 
   return 'Starter'
+}
+
+export const getVisiblePlanLabel = (profile) => {
+  const normalizedProfile = normalizeUserProfile(profile)
+  if (normalizedProfile.licensePlan === 'team_monthly') {
+    return 'Premium'
+  }
+
+  if (normalizedProfile.licensePlan === 'business_yearly') {
+    return 'Pro'
+  }
+
+  return 'Basic'
+}
+
+export const getPlanBillingSummary = (profile) => {
+  const normalizedProfile = normalizeUserProfile(profile)
+
+  if (normalizedProfile.platformRole === 'platform_admin') {
+    return 'Platform admin access'
+  }
+
+  if (normalizedProfile.licensePlan === 'team_monthly') {
+    return normalizedProfile.billingStatus === 'active' ? '€6/month active' : '€6/month pending'
+  }
+
+  if (normalizedProfile.licensePlan === 'business_yearly') {
+    return normalizedProfile.billingStatus === 'active' ? '€60/year active' : '€60/year pending'
+  }
+
+  return 'Free'
+}
+
+export const getWorkspaceDisplayName = (profile) => {
+  const normalizedProfile = normalizeUserProfile(profile)
+  return normalizedProfile.workspaceName || normalizedProfile.businessName || normalizedProfile.displayName || 'ConceptSHOP'
+}
+
+export const getWorkspaceBrandLogo = (profile) => {
+  const normalizedProfile = normalizeUserProfile(profile)
+  return normalizedProfile.logoUrl || ''
 }
 
 export const getAccountTierKey = (profile) => {

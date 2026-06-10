@@ -1,21 +1,29 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { useAuth } from '../context/AuthContext'
 import AuthShell from '../components/auth/AuthShell'
 import AlertCard from '../components/auth/AlertCard'
 import OptionTile from '../components/auth/OptionTile'
-import { PAYMENT_METHODS, getPlanById, planRequiresPayment } from '../config/plans'
+import { PAYMENT_METHODS, getLicenseMeta, getPlanById, normalizeLicensePlan, planRequiresPayment } from '../config/plans'
+import { db } from '../firebase/config'
 import { mergePendingOnboarding, readPendingOnboarding } from '../utils/onboardingState'
 
 export default function PaymentPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user, profile, refreshProfile } = useAuth()
   const pending = readPendingOnboarding()
   const returnTo = location.state?.returnTo || pending?.returnTo || '/signup'
   const inviteCode = location.state?.inviteCode || pending?.inviteCode || ''
   const onboardingSource = location.state?.onboardingSource || pending?.onboardingSource || 'signup'
-  const plan = getPlanById(pending?.licensePlan)
-  const validPaymentSession = pending && planRequiresPayment(plan.id)
+  const selectedPlanId = normalizeLicensePlan(location.state?.selectedPlan || pending?.licensePlan || profile?.licensePlan || 'starter')
+  const plan = getPlanById(selectedPlanId)
+  const validPaymentSession = Boolean(location.state?.selectedPlan || pending || profile)
   const [selectedMethod, setSelectedMethod] = useState(pending?.paymentMethod || PAYMENT_METHODS[0].id)
+  const [submitted, setSubmitted] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
 
   if (!validPaymentSession) {
     return (
@@ -29,6 +37,89 @@ export default function PaymentPage() {
             <Link to="/signup" className="rounded-xl bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700">
               Create account
             </Link>
+            <Link to="/pricing" className="rounded-xl border border-surface-border bg-surface-darker/60 px-6 py-3 font-semibold text-white transition-colors hover:bg-surface-border">
+              View pricing
+            </Link>
+          </div>
+        </div>
+      </AuthShell>
+    )
+  }
+
+  const handleContinue = async () => {
+    setSaving(true)
+    setStatusMessage('')
+
+    const planMeta = getLicenseMeta(plan.id)
+    const billingStatus = planRequiresPayment(plan.id) ? 'pending_payment' : 'free'
+
+    try {
+      if (user?.uid) {
+        await setDoc(doc(db, 'users', user.uid), {
+          licensePlan: plan.id,
+          billingStatus,
+          memberLimit: planMeta.memberLimit,
+          paymentMethodSummary: {
+            type: selectedMethod,
+            status: billingStatus === 'free' ? 'not_required' : 'pending_payment',
+            last4: '',
+            updatedAt: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        }, { merge: true })
+        await refreshProfile().catch(() => {})
+      } else {
+        mergePendingOnboarding({
+          licensePlan: plan.id,
+          paymentMethod: selectedMethod,
+          returnTo
+        })
+      }
+
+      setStatusMessage(
+        plan.id === 'starter'
+          ? 'Basic plan applied. Your account remains on the free tier.'
+          : `${plan.priceDisplay} selected. Payment integration coming next. Continue in pending_payment mode.`
+      )
+      setSubmitted(true)
+    } catch (error) {
+      console.error('Error saving payment selection:', {
+        code: error?.code,
+        message: error?.message,
+        error
+      })
+      setStatusMessage(error?.message || 'Failed to save payment selection.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (submitted) {
+    return (
+      <AuthShell maxWidth="max-w-2xl">
+        <div className="glass rounded-3xl p-10 space-y-6 text-center">
+          <div className="mx-auto h-16 w-16 rounded-full bg-accent-gold/20 flex items-center justify-center">
+            <svg className="h-8 w-8 text-accent-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-white">Payment placeholder saved</h1>
+          <p className="text-slate-300">{statusMessage}</p>
+          <p className="text-slate-400">
+            {plan.id === 'starter'
+              ? 'Free plans continue immediately.'
+              : 'Paid plans stay in pending_payment until Stripe checkout is connected.'}
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => navigate(returnTo, {
+                state: inviteCode ? { inviteCode, selectedPlan: plan.id } : { selectedPlan: plan.id }
+              })}
+              className="rounded-xl bg-primary-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-700"
+            >
+              {returnTo === '/settings' ? 'Back to settings' : 'Continue to account creation'}
+            </button>
             <Link to="/pricing" className="rounded-xl border border-surface-border bg-surface-darker/60 px-6 py-3 font-semibold text-white transition-colors hover:bg-surface-border">
               View pricing
             </Link>
@@ -83,26 +174,24 @@ export default function PaymentPage() {
             <div className="rounded-xl border border-surface-border bg-surface-darker p-4 text-sm text-slate-300">
               Next step:
               <div className="mt-2 text-white">
-                Return to account creation and finish setup with {pending?.authMethod === 'google' ? 'Google' : 'email + password'}.
+                {returnTo === '/settings'
+                  ? 'Save the selected billing mode and return to settings.'
+                  : `Return to account creation and finish setup with ${pending?.authMethod === 'google' ? 'Google' : 'email + password'}.`}
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => {
-                mergePendingOnboarding({ paymentMethod: selectedMethod })
-                navigate(returnTo, {
-                  state: inviteCode ? { inviteCode } : undefined
-                })
-              }}
+              onClick={handleContinue}
+              disabled={saving}
               className="w-full rounded-xl bg-accent-gold px-6 py-3 font-semibold text-black transition-colors hover:bg-amber-500"
             >
-              Continue to account creation
+              {saving ? 'Saving...' : 'Continue'}
             </button>
 
             <button
               type="button"
-              onClick={() => navigate(returnTo, { state: inviteCode ? { inviteCode } : undefined })}
+              onClick={() => navigate(returnTo, { state: inviteCode ? { inviteCode, selectedPlan: plan.id } : { selectedPlan: plan.id } })}
               className="w-full rounded-xl border border-surface-border bg-surface-darker/60 px-6 py-3 font-semibold text-white transition-colors hover:bg-surface-border"
             >
               Back
