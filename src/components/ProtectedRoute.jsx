@@ -15,13 +15,13 @@ import { PageLoader } from './LoadingSpinner'
  * </ProtectedRoute>
  */
 export default function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
   if (loading) {
     return <PageLoader />
   }
 
-  if (!user) {
+  if (!user || !profile) {
     return <Navigate to="/login" replace />
   }
 

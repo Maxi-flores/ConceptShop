@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import GoogleAuthButton from '../components/auth/GoogleAuthButton'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false)
   const [resetCodeVerified, setResetCodeVerified] = useState(false)
   const [resetCodeEmail, setResetCodeEmail] = useState('')
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const { login, loginWithGoogle, sendResetEmail, validateResetCode, confirmResetPassword } = useAuth()
   const navigate = useNavigate()
@@ -77,9 +79,9 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignIn = async () => {
     setError('')
-    setLoading(true)
+    setGoogleLoading(true)
 
     try {
       await loginWithGoogle()
@@ -87,7 +89,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google')
     } finally {
-      setLoading(false)
+      setGoogleLoading(false)
     }
   }
 
@@ -170,7 +172,7 @@ export default function LoginPage() {
               ? 'Create a new password to finish recovering your account'
               : showReset
               ? 'Enter your email to receive a reset link'
-              : 'Sign in to your stakeholder account'}
+              : 'Sign in to your existing ConceptSHOP account'}
           </p>
 
           {hasResetSuccess && !isRecoveryMode && (
@@ -324,53 +326,41 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="w-full py-3 bg-primary-600 hover:bg-primary-700 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Signing in...' : 'Sign In'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-surface-border rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-                >
-                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M21.35 11.1H12v3.7h5.38c-.23 1.23-.97 2.27-2.02 2.97v2.47h3.28c1.92-1.77 3.03-4.38 3.03-7.47 0-.72-.06-1.42-.32-2.14Z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 22c2.73 0 5.02-.9 6.69-2.44l-3.28-2.47c-.91.61-2.08.98-3.41.98-2.62 0-4.84-1.77-5.63-4.15H2.92v2.58A10 10 0 0 0 12 22Z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M6.37 13.92A5.99 5.99 0 0 1 6 12c0-.67.12-1.32.37-1.92V7.5H2.92A10 10 0 0 0 2 12c0 1.61.39 3.13.92 4.5l3.45-2.58Z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.98c1.49 0 2.82.52 3.87 1.54l2.9-2.9A9.88 9.88 0 0 0 12 2a10 10 0 0 0-9.08 5.5l3.45 2.58C7.16 7.75 9.38 5.98 12 5.98Z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  <span>{loading ? 'Connecting...' : 'Google'}</span>
-                </button>
+                <GoogleAuthButton
+                  onClick={handleGoogleSignIn}
+                  disabled={googleLoading || loading}
+                  loading={googleLoading}
+                  className="w-full"
+                />
               </div>
             </form>
           )}
 
           {!showReset && !resetSent && (
             <div className="mt-8 pt-6 border-t border-surface-border text-center">
-              <p className="text-slate-400 text-sm">
-                Have an invite code?{' '}
-                <Link to="/invite/code" className="text-primary-400 hover:text-primary-300 font-medium">
-                  Join ConceptSHOP
-                </Link>
-              </p>
+              <div className="flex flex-col gap-2 text-sm text-slate-400">
+                <p>
+                  Need a new workspace?{' '}
+                  <Link to="/signup" className="text-primary-400 hover:text-primary-300 font-medium">
+                    Create Account
+                  </Link>
+                </p>
+                <p>
+                  Have an invite code?{' '}
+                  <Link to="/invite/code" className="text-primary-400 hover:text-primary-300 font-medium">
+                    Join ConceptSHOP
+                  </Link>
+                </p>
+              </div>
             </div>
           )}
         </div>

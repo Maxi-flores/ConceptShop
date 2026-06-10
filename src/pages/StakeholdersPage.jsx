@@ -6,13 +6,18 @@ import { useStakeholder } from '../context/StakeholderContext'
 import { createInviteCode } from '../firebase/auth'
 
 export default function StakeholdersPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const { stakeholders, myStake, totalPool, addInvestment, calculateSharePercentage } = useStakeholder()
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('all')
   const [showInvestModal, setShowInvestModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [generatedCode, setGeneratedCode] = useState(null)
+  const [inviteError, setInviteError] = useState('')
+  const subMemberCount = stakeholders.filter(s => s.invitedBy === user?.uid).length
+  const billingPending = profile?.billingStatus === 'pending_payment'
+  const canCreateInvites = profile?.licensePlan === 'admin_monthly' || profile?.licensePlan === 'admin_yearly'
+  const canInviteMore = canCreateInvites && subMemberCount < (profile?.memberLimit || 0)
 
   const filteredStakeholders = stakeholders.filter(s => {
     const matchesSearch = s.fullName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -43,11 +48,29 @@ export default function StakeholdersPage() {
   }
 
   const handleGenerateInvite = async () => {
+    setInviteError('')
+
+    if (!canCreateInvites) {
+      setInviteError('Free Startup License includes 0 sub members. Upgrade to add sub members.')
+      return
+    }
+
+    if (billingPending) {
+      setInviteError('Payment integration coming next. Continue in pending_payment mode before inviting sub members.')
+      return
+    }
+
+    if (!canInviteMore) {
+      setInviteError(`You have reached your sub-member limit of ${profile?.memberLimit || 0}.`)
+      return
+    }
+
     try {
       const code = await createInviteCode(user.uid, { maxUses: 1 })
       setGeneratedCode(code)
     } catch (error) {
       console.error('Error generating invite:', error)
+      setInviteError('Failed to generate invite code')
     }
   }
 
@@ -58,6 +81,11 @@ export default function StakeholdersPage() {
         <div>
           <h1 className="text-2xl font-bold">Stakeholders</h1>
           <p className="text-slate-400">{totalPool.activeStakeholders} active stakeholders</p>
+          {billingPending && (
+            <p className="mt-2 text-sm text-accent-gold">
+              Payment integration coming next. Continue in pending_payment mode.
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
           <button
@@ -70,8 +98,26 @@ export default function StakeholdersPage() {
             Add Investment
           </button>
           <button
-            onClick={() => setShowInviteModal(true)}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors flex items-center gap-2"
+            onClick={() => {
+              if (!canCreateInvites) {
+                setInviteError('Free Startup License includes 0 sub members. Upgrade to add sub members.')
+                return
+              }
+
+              if (billingPending) {
+                setInviteError('Payment integration coming next. Continue in pending_payment mode before inviting sub members.')
+                return
+              }
+
+              if (!canInviteMore) {
+                setInviteError(`You have reached your sub-member limit of ${profile?.memberLimit || 0}.`)
+                return
+              }
+
+              setShowInviteModal(true)
+            }}
+            disabled={!canCreateInvites || billingPending || !canInviteMore}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -108,6 +154,12 @@ export default function StakeholdersPage() {
                 <div className="text-sm text-slate-400">Tier</div>
                 <div className={`text-2xl font-bold capitalize ${tierColors[myStake.tier]?.split(' ')[0]}`}>
                   {myStake.tier}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-slate-400">Sub members</div>
+                <div className="text-2xl font-bold text-white">
+                  {subMemberCount}/{profile?.memberLimit || 0}
                 </div>
               </div>
             </div>
@@ -267,9 +319,10 @@ export default function StakeholdersPage() {
       <AnimatePresence>
         {showInviteModal && (
           <InviteModal
-            onClose={() => { setShowInviteModal(false); setGeneratedCode(null) }}
+            onClose={() => { setShowInviteModal(false); setGeneratedCode(null); setInviteError('') }}
             onGenerate={handleGenerateInvite}
             generatedCode={generatedCode}
+            inviteError={inviteError}
           />
         )}
       </AnimatePresence>
@@ -369,7 +422,7 @@ function InvestmentModal({ onClose, onInvest }) {
   )
 }
 
-function InviteModal({ onClose, onGenerate, generatedCode }) {
+function InviteModal({ onClose, onGenerate, generatedCode, inviteError }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -389,6 +442,12 @@ function InviteModal({ onClose, onGenerate, generatedCode }) {
           <h2 className="text-xl font-bold">Invite New Stakeholder</h2>
           <p className="text-slate-400 text-sm">Generate an invite code to share with someone</p>
 
+          {inviteError && (
+            <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 text-sm">
+              {inviteError}
+            </div>
+          )}
+
           {generatedCode ? (
             <div className="space-y-4">
               <div className="p-4 bg-accent-emerald/10 border border-accent-emerald/20 rounded-lg text-center">
@@ -400,12 +459,12 @@ function InviteModal({ onClose, onGenerate, generatedCode }) {
               <div className="p-3 bg-surface-dark rounded-lg text-sm text-slate-400">
                 Share this link:{' '}
                 <span className="text-primary-400 break-all">
-                  {window.location.origin}/invite/{generatedCode}
+                  {window.location.origin}/invite/code?invite={generatedCode}
                 </span>
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/invite/${generatedCode}`)
+                  navigator.clipboard.writeText(`${window.location.origin}/invite/code?invite=${generatedCode}`)
                 }}
                 className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors"
               >

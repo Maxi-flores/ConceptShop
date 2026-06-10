@@ -5,7 +5,10 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicRoute from './components/PublicRoute'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
 import RegisterPage from './pages/RegisterPage'
+import PricingPage from './pages/PricingPage'
+import PaymentPage from './pages/PaymentPage'
 import DashboardPage from './pages/DashboardPage'
 import ProductsPage from './pages/ProductsPage'
 import OrdersPage from './pages/OrdersPage'
@@ -23,10 +26,32 @@ export default function App() {
     <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/invite/code" element={<InvitePage />} />
       <Route path="/invite/:code" element={<InvitePage />} />
+      <Route path="/signup" element={
+        <PublicRoute>
+          <SignupPage />
+        </PublicRoute>
+      } />
+      <Route path="/invite/register" element={
+        <PublicRoute>
+          <RegisterPage />
+        </PublicRoute>
+      } />
+      <Route path="/invite/register/:inviteCode" element={
+        <PublicRoute>
+          <RegisterPage />
+        </PublicRoute>
+      } />
       <Route path="/login" element={
         <PublicRoute>
           <LoginPage />
+        </PublicRoute>
+      } />
+      <Route path="/payment" element={
+        <PublicRoute>
+          <PaymentPage />
         </PublicRoute>
       } />
       <Route path="/register/:inviteCode" element={

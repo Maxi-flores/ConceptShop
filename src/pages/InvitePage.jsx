@@ -1,13 +1,26 @@
-import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { validateInviteCode } from '../firebase/auth'
+import { mergePendingOnboarding } from '../utils/onboardingState'
 
 export default function InvitePage() {
   const { code: initialCode } = useParams()
-  const [inviteCode, setInviteCode] = useState(initialCode || '')
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const stateInvite = location.state?.inviteCode
+    const queryInvite = searchParams.get('invite')
+    const normalizedInitial = initialCode && initialCode !== 'code' ? initialCode : ''
+    const nextInvite = (stateInvite || queryInvite || normalizedInitial || '').toUpperCase()
+    if (nextInvite) {
+      setInviteCode(nextInvite)
+    }
+  }, [initialCode, location.state, searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -17,7 +30,13 @@ export default function InvitePage() {
     try {
       const result = await validateInviteCode(inviteCode)
       if (result.valid) {
-        navigate(`/register/${inviteCode.toUpperCase()}`)
+        mergePendingOnboarding({
+          onboardingSource: 'invite',
+          inviteCode: result.inviteCode,
+          returnTo: '/invite/register'
+        })
+
+        navigate('/invite/register', { state: { inviteCode: result.inviteCode } })
       } else {
         setError(result.error || 'Invalid invite code')
       }
@@ -57,7 +76,7 @@ export default function InvitePage() {
             Enter Invite Code
           </h1>
           <p className="text-slate-400 text-center mb-8">
-            ConceptSHOP is invite-only. Enter your code to join.
+            ConceptSHOP is invite-only. Enter your code to continue.
           </p>
 
           {error && (
@@ -85,13 +104,13 @@ export default function InvitePage() {
               </p>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || inviteCode.length < 3}
-              className="w-full py-3 bg-accent-gold hover:bg-amber-500 text-black rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Verifying...' : 'Verify Code'}
-            </button>
+          <button
+            type="submit"
+            disabled={loading || inviteCode.length < 3}
+            className="w-full py-3 bg-accent-gold hover:bg-amber-500 text-black rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Verifying...' : 'Continue to account creation'}
+          </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-surface-border">
@@ -105,6 +124,12 @@ export default function InvitePage() {
               >
                 Sign in instead
               </Link>
+              <div className="mt-2 text-sm text-slate-500">
+                Need a new account?{' '}
+                <Link to="/signup" className="text-primary-400 hover:text-primary-300">
+                  Create an account
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -117,7 +142,7 @@ export default function InvitePage() {
             Need an invite?
           </h3>
           <p className="text-sm text-slate-400">
-            Ask an existing stakeholder to generate an invite code for you,
+            Ask an existing ConceptSHOP member to generate an invite code for you,
             or contact us at <span className="text-primary-400">invites@conceptshop.com</span>
           </p>
         </div>

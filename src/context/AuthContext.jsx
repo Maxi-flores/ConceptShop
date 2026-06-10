@@ -1,15 +1,17 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../firebase/config'
 import {
+  completeGoogleRedirectOnboarding,
+  completePasswordReset,
+  createAccountWithEmail,
+  createAccountWithGoogle,
   getUserProfile,
+  logOut,
+  resetPassword,
   signIn,
   signInWithGoogle,
-  logOut,
-  signUpWithInvite,
-  resetPassword,
-  verifyResetCode,
-  completePasswordReset
+  verifyResetCode
 } from '../firebase/auth'
 
 const AuthContext = createContext(null)
@@ -22,19 +24,24 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser)
-        try {
-          const userProfile = await getUserProfile(firebaseUser.uid)
-          setProfile(userProfile)
-        } catch (err) {
-          console.error('Error fetching profile:', err)
-        }
-      } else {
+      if (!firebaseUser) {
         setUser(null)
         setProfile(null)
+        setLoading(false)
+        return
       }
-      setLoading(false)
+
+      setUser(firebaseUser)
+
+      try {
+        const userProfile = await getUserProfile(firebaseUser.uid)
+        setProfile(userProfile)
+      } catch (err) {
+        console.error('Error fetching profile:', err)
+        setProfile(null)
+      } finally {
+        setLoading(false)
+      }
     })
 
     return () => unsubscribe()
@@ -43,10 +50,10 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setError(null)
     try {
-      const user = await signIn(email, password)
-      const userProfile = await getUserProfile(user.uid)
+      const userRecord = await signIn(email, password)
+      const userProfile = await getUserProfile(userRecord.uid)
       setProfile(userProfile)
-      return user
+      return userRecord
     } catch (err) {
       setError(err.message)
       throw err
@@ -56,23 +63,57 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     setError(null)
     try {
-      const user = await signInWithGoogle()
-      const userProfile = await getUserProfile(user.uid)
+      const userRecord = await signInWithGoogle()
+      const userProfile = await getUserProfile(userRecord.uid)
       setProfile(userProfile)
-      return user
+      return userRecord
     } catch (err) {
       setError(err.message)
       throw err
     }
   }
 
-  const register = async (email, password, fullName, inviteCode) => {
+  const register = async (options) => {
     setError(null)
     try {
-      const { user } = await signUpWithInvite(email, password, fullName, inviteCode)
-      const userProfile = await getUserProfile(user.uid)
+      const { user: createdUser } = await createAccountWithEmail(options)
+      const userProfile = await getUserProfile(createdUser.uid)
       setProfile(userProfile)
-      return user
+      return createdUser
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const registerWithGoogle = async (options) => {
+    setError(null)
+    try {
+      const createdUser = await createAccountWithGoogle(options)
+      if (!createdUser) {
+        return null
+      }
+
+      const userProfile = await getUserProfile(createdUser.uid)
+      setProfile(userProfile)
+      return createdUser
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const finishGoogleRedirectOnboarding = async (overrides) => {
+    setError(null)
+    try {
+      const redirectedUser = await completeGoogleRedirectOnboarding(overrides)
+      if (!redirectedUser) {
+        return null
+      }
+
+      const userProfile = await getUserProfile(redirectedUser.uid)
+      setProfile(userProfile)
+      return redirectedUser
     } catch (err) {
       setError(err.message)
       throw err
@@ -128,10 +169,13 @@ export function AuthProvider({ children }) {
     login,
     loginWithGoogle,
     register,
+    registerWithGoogle,
+    finishGoogleRedirectOnboarding,
     logout,
     sendResetEmail,
     validateResetCode,
     confirmResetPassword,
+    hasProfileAccess: Boolean(profile),
     isAdmin: profile?.role === 'admin',
     isStakeholder: profile?.role === 'stakeholder' || profile?.role === 'admin'
   }

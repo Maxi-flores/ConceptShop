@@ -16,13 +16,13 @@ import { PageLoader } from './LoadingSpinner'
  * </PublicRoute>
  */
 export default function PublicRoute({ children }) {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
   if (loading) {
     return <PageLoader />
   }
 
-  if (user) {
+  if (user && profile) {
     return <Navigate to="/dashboard" replace />
   }
 
