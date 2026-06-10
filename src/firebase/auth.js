@@ -42,6 +42,8 @@ googleProvider.setCustomParameters({
 const MISSING_EMAIL_PROFILE_MESSAGE = 'This account is not registered yet. Please join ConceptSHOP with an invite code first.'
 const MISSING_PROFILE_MESSAGE = 'This Google account is not registered yet. Please create an account or join with an invite code.'
 const MISSING_ONBOARDING_MESSAGE = 'Your onboarding session has expired. Please restart account creation.'
+const PROFILE_LOOKUP_TIMEOUT_MS = 8000
+const PROFILE_UNAVAILABLE_MESSAGE = 'Google sign-in worked, but ConceptSHOP could not reach the profile database. Please refresh or try again.'
 
 const friendlyAuthErrors = {
   'auth/unauthorized-domain': 'Google sign-in is not allowed from this domain yet. Add this site to the Firebase authorized domains list.',
@@ -52,6 +54,8 @@ const friendlyAuthErrors = {
   'auth/cancelled-popup-request': 'The Google sign-in popup was cancelled.',
   'auth/operation-not-supported-in-this-environment': 'Google sign-in is not supported in this environment.',
   'auth/network-request-failed': 'Network error while checking Google sign-in. Please try again.',
+  'auth/profile-unavailable': PROFILE_UNAVAILABLE_MESSAGE,
+  'auth/profile-timeout': PROFILE_UNAVAILABLE_MESSAGE,
   'auth/missing-profile-email': MISSING_EMAIL_PROFILE_MESSAGE,
   'auth/missing-profile': MISSING_PROFILE_MESSAGE,
   'auth/missing-onboarding': MISSING_ONBOARDING_MESSAGE
@@ -66,6 +70,42 @@ const asFriendlyError = (error, fallback, code = error?.code) => {
   const friendlyError = new Error(getFriendlyErrorMessage(error, fallback))
   friendlyError.code = code
   return friendlyError
+}
+
+const logFirebaseError = (label, error) => {
+  console.error(label, {
+    code: error?.code,
+    message: error?.message,
+    error
+  })
+}
+
+const isPermissionDeniedError = (error) => {
+  return error?.code === 'permission-denied' || error?.code === 'auth/permission-denied'
+}
+
+const isOfflineLikeError = (error) => {
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    error?.code === 'unavailable' ||
+    error?.code === 'deadline-exceeded' ||
+    error?.code === 'auth/network-request-failed' ||
+    message.includes('client is offline') ||
+    message.includes('offline')
+  )
+}
+
+const raceWithTimeout = (promise, timeoutMs, timeoutError) => {
+  let timeoutId
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(timeoutError), timeoutMs)
+  })
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+  })
 }
 
 const getInviteValidationError = (inviteData) => {
@@ -284,7 +324,7 @@ const touchLastLogin = async (userId) => {
 }
 
 const ensureExistingProfile = async (user, missingProfileMessage = MISSING_EMAIL_PROFILE_MESSAGE, code = 'auth/missing-profile-email') => {
-  const profile = await getUserProfile(user.uid)
+  const profile = await getUserProfileWithTimeout(user.uid)
 
   if (!profile) {
     await signOut(auth).catch(() => {})
@@ -544,7 +584,7 @@ export const signIn = async (email, password) => {
     await ensureExistingProfile(userCredential.user, MISSING_EMAIL_PROFILE_MESSAGE, 'auth/missing-profile-email')
     return userCredential.user
   } catch (error) {
-    console.error('Error signing in:', error)
+    logFirebaseError('Error signing in:', error)
     throw asFriendlyError(error, 'Failed to sign in')
   }
 }
@@ -553,10 +593,16 @@ export const signIn = async (email, password) => {
 export const signInWithGoogle = async () => {
   try {
     const userCredential = await signInWithPopup(auth, googleProvider)
-    await ensureExistingProfile(userCredential.user, MISSING_PROFILE_MESSAGE, 'auth/missing-profile')
-    return userCredential.user
+    const userProfile = await getUserProfileWithTimeout(userCredential.user.uid)
+
+    if (!userProfile) {
+      await signOut(auth).catch(() => {})
+      throw asFriendlyError({ code: 'auth/missing-profile' }, MISSING_PROFILE_MESSAGE, 'auth/missing-profile')
+    }
+
+    return { user: userCredential.user, profile: userProfile }
   } catch (error) {
-    console.error('Error signing in with Google:', error)
+    logFirebaseError('Error signing in with Google:', error)
     throw asFriendlyError(error, 'Failed to sign in with Google')
   }
 }
@@ -615,7 +661,7 @@ export const getUserProfile = async (userId) => {
     }
     return null
   } catch (error) {
-    console.error('Error getting user profile:', error)
+    logFirebaseError('Error getting user profile:', error)
     const code = error?.code || error?.name
 
     if (code === 'permission-denied') {
@@ -636,6 +682,45 @@ export const getUserProfile = async (userId) => {
 
     throw asFriendlyError(error, 'Failed to read your Firestore profile. Please try again.', code)
   }
+}
+
+export const getUserProfileWithTimeout = async (userId, timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS) => {
+  const timeoutError = asFriendlyError(
+    { code: 'auth/profile-timeout' },
+    PROFILE_UNAVAILABLE_MESSAGE,
+    'auth/profile-timeout'
+  )
+
+  try {
+    const profile = await raceWithTimeout(getUserProfile(userId), timeoutMs, timeoutError)
+    return profile
+  } catch (error) {
+    logFirebaseError('Error reading user profile with timeout:', error)
+
+    if (error?.code === 'auth/profile-timeout' || isOfflineLikeError(error)) {
+      throw asFriendlyError({ code: 'auth/profile-unavailable' }, PROFILE_UNAVAILABLE_MESSAGE, 'auth/profile-unavailable')
+    }
+
+    if (isPermissionDeniedError(error)) {
+      throw asFriendlyError(
+        { code: 'permission-denied' },
+        'Firestore permission denied while reading your profile. Please check your Firestore rules and try again.',
+        'permission-denied'
+      )
+    }
+
+    throw error
+  }
+}
+
+export const retryCurrentProfileLookup = async (timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS) => {
+  const currentUser = auth.currentUser
+
+  if (!currentUser) {
+    throw asFriendlyError({ code: 'auth/no-current-user' }, 'No authenticated user is available for profile lookup.', 'auth/no-current-user')
+  }
+
+  return getUserProfileWithTimeout(currentUser.uid, timeoutMs)
 }
 
 // Create invite code (admin only)

@@ -11,6 +11,7 @@ import {
   resetPassword,
   signIn,
   signInWithGoogle,
+  retryCurrentProfileLookup,
   verifyResetCode
 } from '../firebase/auth'
 
@@ -63,8 +64,24 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async () => {
     setError(null)
     try {
-      const userRecord = await signInWithGoogle()
-      const userProfile = await getUserProfile(userRecord.uid)
+      const { user: userRecord, profile: userProfile } = await signInWithGoogle()
+      setProfile(userProfile)
+      return userRecord
+    } catch (err) {
+      console.error('Google login failed:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      })
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const retryProfileLookup = async () => {
+    setError(null)
+    try {
+      const userProfile = await retryCurrentProfileLookup()
 
       if (!userProfile) {
         await logOut().catch(() => {})
@@ -72,9 +89,13 @@ export function AuthProvider({ children }) {
       }
 
       setProfile(userProfile)
-      return userRecord
+      return userProfile
     } catch (err) {
-      console.error('Google login failed:', err)
+      console.error('Profile lookup retry failed:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      })
       setError(err.message)
       throw err
     }
@@ -175,6 +196,7 @@ export function AuthProvider({ children }) {
     error,
     login,
     loginWithGoogle,
+    retryProfileLookup,
     register,
     registerWithGoogle,
     finishGoogleRedirectOnboarding,

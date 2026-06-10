@@ -4,7 +4,6 @@ import GoogleAuthButton from '../components/auth/GoogleAuthButton'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
-  const GOOGLE_LOGIN_TIMEOUT_MS = 20000
   const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,8 +16,10 @@ export default function LoginPage() {
   const [resetCodeVerified, setResetCodeVerified] = useState(false)
   const [resetCodeEmail, setResetCodeEmail] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [profileRetryLoading, setProfileRetryLoading] = useState(false)
+  const [googleProfileRetryable, setGoogleProfileRetryable] = useState(false)
 
-  const { login, loginWithGoogle, sendResetEmail, validateResetCode, confirmResetPassword } = useAuth()
+  const { login, loginWithGoogle, retryProfileLookup, sendResetEmail, validateResetCode, confirmResetPassword } = useAuth()
   const navigate = useNavigate()
   const mode = searchParams.get('mode')
   const actionCode = searchParams.get('oobCode')
@@ -82,25 +83,65 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError('')
+    setGoogleProfileRetryable(false)
     setGoogleLoading(true)
-    let timeoutId = null
 
     try {
-      timeoutId = setTimeout(() => {
-        setError('Google sign-in is taking longer than expected. Please try again.')
-        setGoogleLoading(false)
-      }, GOOGLE_LOGIN_TIMEOUT_MS)
-
       await loginWithGoogle()
       navigate('/dashboard')
     } catch (err) {
-      console.error('LoginPage Google sign-in failed:', err)
-      setError(err.message || 'Failed to sign in with Google')
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+      console.error('LoginPage Google sign-in failed:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      })
+
+      if (err?.code === 'auth/profile-unavailable') {
+        setGoogleProfileRetryable(true)
+        setError('Google sign-in worked, but ConceptSHOP could not reach the profile database. Please refresh or try again.')
+      } else if (err?.code === 'permission-denied') {
+        setError('Firestore permission denied while reading your profile. Please check your Firestore rules and try again.')
+      } else if (err?.code === 'auth/missing-profile') {
+        setError('This Google account is not registered yet. Please create an account or join with an invite code.')
+      } else {
+        setError(err.message || 'Failed to sign in with Google')
       }
+    } finally {
       setGoogleLoading(false)
+    }
+  }
+
+  const handleRetryProfileLookup = async () => {
+    setError('')
+    setProfileRetryLoading(true)
+
+    try {
+      const profile = await retryProfileLookup()
+      if (profile) {
+        setGoogleProfileRetryable(false)
+        navigate('/dashboard')
+      }
+    } catch (err) {
+      console.error('LoginPage profile retry failed:', {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      })
+
+      if (err?.code === 'auth/profile-unavailable') {
+        setGoogleProfileRetryable(true)
+        setError('Google sign-in worked, but ConceptSHOP could not reach the profile database. Please refresh or try again.')
+      } else if (err?.code === 'permission-denied') {
+        setGoogleProfileRetryable(false)
+        setError('Firestore permission denied while reading your profile. Please check your Firestore rules and try again.')
+      } else if (err?.code === 'auth/missing-profile') {
+        setGoogleProfileRetryable(false)
+        setError('This Google account is not registered yet. Please create an account or join with an invite code.')
+      } else {
+        setError(err.message || 'Failed to load your profile.')
+      }
+    } finally {
+      setProfileRetryLoading(false)
     }
   }
 
@@ -353,6 +394,17 @@ export default function LoginPage() {
                   className="w-full"
                 />
               </div>
+
+              {googleProfileRetryable && (
+                <button
+                  type="button"
+                  onClick={handleRetryProfileLookup}
+                  disabled={profileRetryLoading}
+                  className="w-full rounded-lg border border-surface-border bg-surface-darker/60 py-3 font-semibold text-white transition-colors hover:bg-surface-border disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {profileRetryLoading ? 'Retrying...' : 'Retry profile lookup'}
+                </button>
+              )}
             </form>
           )}
 
