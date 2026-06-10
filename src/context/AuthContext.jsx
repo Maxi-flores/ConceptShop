@@ -23,6 +23,17 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const refreshProfile = async () => {
+    if (!auth.currentUser) {
+      setProfile(null)
+      return null
+    }
+
+    const userProfile = await getUserProfile(auth.currentUser.uid)
+    setProfile(userProfile)
+    return userProfile
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -194,6 +205,7 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     error,
+    refreshProfile,
     login,
     loginWithGoogle,
     retryProfileLookup,
@@ -205,7 +217,8 @@ export function AuthProvider({ children }) {
     validateResetCode,
     confirmResetPassword,
     hasProfileAccess: Boolean(profile),
-    isAdmin: profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin' || profile?.platformRole === 'platform_admin',
+    isPlatformAdmin: profile?.platformRole === 'platform_admin',
     isStakeholder: profile?.role === 'stakeholder' || profile?.role === 'admin'
   }
 

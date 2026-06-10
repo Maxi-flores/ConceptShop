@@ -26,6 +26,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from './config'
 import { getLicenseMeta, normalizeLicensePlan, normalizeWorkspaceFocus } from '../config/plans'
+import { normalizeUserProfile } from '../utils/profile'
 import {
   clearPendingOnboarding,
   mergePendingOnboarding,
@@ -318,6 +319,7 @@ const buildUserProfilePayload = ({
   displayName,
   licensePlan,
   role = 'admin',
+  platformRole = 'user',
   billingStatus,
   memberLimit,
   accountType,
@@ -328,7 +330,7 @@ const buildUserProfilePayload = ({
   const normalizedSource = normalizeOnboardingSource(onboardingSource)
   const normalizedWorkspaceFocus = normalizeWorkspaceFocus(workspaceFocus)
   const licenseMeta = getLicenseMeta(normalizedPlan)
-  const resolvedDisplayName = displayName || user.displayName || user.email?.split('@')[0] || 'User'
+  const resolvedDisplayName = displayName || user.displayName || user.email?.split('@')[0] || 'ConceptSHOP user'
   const resolvedRole = role === 'member' ? 'member' : 'admin'
   const resolvedBillingStatus = billingStatus || licenseMeta.billingStatus
   const resolvedMemberLimit = Number.isFinite(memberLimit) ? memberLimit : licenseMeta.memberLimit
@@ -340,6 +342,7 @@ const buildUserProfilePayload = ({
     fullName: resolvedDisplayName,
     authProvider: providerLabel,
     role: resolvedRole,
+    platformRole: platformRole === 'platform_admin' ? 'platform_admin' : 'user',
     accountType: accountType || 'company',
     workspaceFocus: normalizedWorkspaceFocus,
     licensePlan: normalizedPlan,
@@ -347,6 +350,8 @@ const buildUserProfilePayload = ({
     memberLimit: resolvedMemberLimit,
     inviteCode: inviteValidation?.inviteCode || null,
     onboardingSource: normalizedSource,
+    onboardingCompleted: false,
+    completedTutorials: {},
     photoURL: user.photoURL || null,
     inviteId: inviteValidation?.inviteId || null,
     invitedBy: inviteValidation?.inviteData?.createdByUid || inviteValidation?.inviteData?.createdBy || null,
@@ -455,6 +460,7 @@ const provisionAccount = async ({
   providerLabel,
   licensePlan,
   role = 'admin',
+  platformRole = 'user',
   billingStatus,
   memberLimit,
   accountType,
@@ -466,7 +472,7 @@ const provisionAccount = async ({
   const invitedRole = inviteData?.role === 'admin' ? 'admin' : 'member'
   const resolvedRole = inviteValidation ? invitedRole : role
   const inviterProfile = inviteData?.createdByUid ? await getUserProfile(inviteData.createdByUid).catch(() => null) : null
-  const inheritedPlan = inviterProfile?.licensePlan || 'free_startup'
+  const inheritedPlan = inviterProfile?.licensePlan || 'starter'
   const inheritedBillingStatus = inviterProfile?.billingStatus || 'free'
   const resolvedPlan = inviteValidation ? inheritedPlan : licensePlan
   const resolvedBilling = inviteValidation ? inheritedBillingStatus : billingStatus
@@ -496,6 +502,7 @@ const provisionAccount = async ({
     displayName,
     licensePlan: resolvedPlan,
     role: resolvedRole,
+    platformRole,
     billingStatus: resolvedBilling,
     memberLimit: resolvedMemberLimit,
     accountType,
@@ -597,7 +604,7 @@ export const createAccountWithEmail = async ({
   email,
   password,
   displayName,
-  licensePlan = 'free_startup',
+  licensePlan = 'starter',
   workspaceFocus = 'online_store',
   accountType = 'company',
   onboardingSource = 'signup',
@@ -632,7 +639,7 @@ export const createAccountWithEmail = async ({
     const credential = await createUserWithEmailAndPassword(auth, email, password)
     createdUser = credential.user
 
-    const resolvedDisplayName = displayName?.trim() || email?.split('@')[0] || 'User'
+    const resolvedDisplayName = displayName?.trim() || email?.split('@')[0] || 'ConceptSHOP user'
     await updateProfile(createdUser, { displayName: resolvedDisplayName })
 
     await provisionAccount({
@@ -640,6 +647,7 @@ export const createAccountWithEmail = async ({
       displayName: resolvedDisplayName,
       providerLabel: 'password',
       licensePlan: normalizedOptions.licensePlan,
+      platformRole: 'user',
       workspaceFocus: normalizedOptions.workspaceFocus,
       accountType: normalizedOptions.accountType,
       onboardingSource: normalizedOptions.onboardingSource,
@@ -659,7 +667,7 @@ export const createAccountWithEmail = async ({
 
 export const createAccountWithGoogle = async ({
   displayName,
-  licensePlan = 'free_startup',
+  licensePlan = 'starter',
   workspaceFocus = 'online_store',
   accountType = 'company',
   onboardingSource = 'signup',
@@ -749,7 +757,7 @@ export const completeGoogleRedirectOnboarding = async (overrides = {}) => {
 }
 
 // Backward-compatible wrappers
-export const signUpWithInvite = async (email, password, fullName, inviteCode, licensePlan = 'free_startup') => {
+export const signUpWithInvite = async (email, password, fullName, inviteCode, licensePlan = 'starter') => {
   return createAccountWithEmail({
     email,
     password,
@@ -762,7 +770,7 @@ export const signUpWithInvite = async (email, password, fullName, inviteCode, li
   })
 }
 
-export const registerWithGoogle = async (inviteCode, licensePlan = 'free_startup', fullName) => {
+export const registerWithGoogle = async (inviteCode, licensePlan = 'starter', fullName) => {
   return createAccountWithGoogle({
     displayName: fullName,
     inviteCode,
@@ -857,7 +865,7 @@ export const getUserProfile = async (userId) => {
   try {
     const userDoc = await getDoc(doc(db, 'users', userId))
     if (userDoc.exists()) {
-      return { id: userDoc.id, ...userDoc.data() }
+      return normalizeUserProfile({ id: userDoc.id, ...userDoc.data() })
     }
     return null
   } catch (error) {

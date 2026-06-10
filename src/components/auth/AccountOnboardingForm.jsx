@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LICENSE_PLANS, getPlanById, planRequiresPayment } from '../../config/plans'
+import { LICENSE_PLANS, getPlanById, normalizeLicensePlan, planRequiresPayment } from '../../config/plans'
 import { useAuth } from '../../context/AuthContext'
 import { mergePendingOnboarding, readPendingOnboarding } from '../../utils/onboardingState'
 import AlertCard from './AlertCard'
@@ -30,7 +30,7 @@ export default function AccountOnboardingForm({
   const pending = useMemo(() => readPendingOnboarding(), [location.key])
   const matchesPendingContext = pending?.onboardingSource === onboardingSource && (pending?.inviteCode || '') === inviteCode
 
-  const [selectedPlan, setSelectedPlan] = useState(() => (matchesPendingContext ? pending?.licensePlan || 'free_startup' : 'free_startup'))
+  const [selectedPlan, setSelectedPlan] = useState(() => normalizeLicensePlan(matchesPendingContext ? pending?.licensePlan || 'starter' : 'starter'))
   const [selectedMethod, setSelectedMethod] = useState(() => (matchesPendingContext ? pending?.authMethod || 'email' : 'email'))
   const [displayName, setDisplayName] = useState(() => (matchesPendingContext ? pending?.displayName || '' : ''))
   const [email, setEmail] = useState(() => (matchesPendingContext ? pending?.email || '' : ''))
@@ -45,7 +45,7 @@ export default function AccountOnboardingForm({
       return
     }
 
-    setSelectedPlan(pending?.licensePlan || 'free_startup')
+    setSelectedPlan(normalizeLicensePlan(pending?.licensePlan || 'starter'))
     setSelectedMethod(pending?.authMethod || 'email')
     setDisplayName(pending?.displayName || '')
     setEmail(pending?.email || '')

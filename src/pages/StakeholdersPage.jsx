@@ -5,6 +5,7 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 import { useAuth } from '../context/AuthContext'
 import { useStakeholder } from '../context/StakeholderContext'
 import { createInviteCode } from '../firebase/auth'
+import { canManageInvites, getInvitePermissionMessage } from '../utils/profile'
 
 export default function StakeholdersPage() {
   const { user, profile, isAdmin } = useAuth()
@@ -18,8 +19,9 @@ export default function StakeholdersPage() {
   const [inviteError, setInviteError] = useState('')
   const subMemberCount = stakeholders.filter(s => s.invitedBy === user?.uid).length
   const billingPending = profile?.billingStatus === 'pending_payment'
-  const canCreateInvites = profile?.licensePlan === 'admin_monthly' || profile?.licensePlan === 'admin_yearly'
-  const canInviteMore = canCreateInvites && subMemberCount < (profile?.memberLimit || 0)
+  const canCreateInvites = canManageInvites(profile)
+  const inviteBlockedMessage = getInvitePermissionMessage(profile)
+  const canInviteMore = profile?.platformRole === 'platform_admin' || subMemberCount < 2
 
   const filteredStakeholders = stakeholders.filter(s => {
     const matchesSearch = s.fullName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -53,17 +55,17 @@ export default function StakeholdersPage() {
     setInviteError('')
 
     if (!canCreateInvites) {
-      setInviteError('Free Startup License includes 0 sub members. Upgrade to add sub members.')
+      setInviteError(inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.')
       return
     }
 
-    if (billingPending) {
+    if (billingPending && profile?.platformRole !== 'platform_admin') {
       setInviteError('Payment integration coming next. Continue in pending_payment mode before inviting sub members.')
       return
     }
 
     if (!canInviteMore) {
-      setInviteError(`You have reached your sub-member limit of ${profile?.memberLimit || 0}.`)
+      setInviteError('You have reached your invite limit of 2 sub members.')
       return
     }
 
@@ -100,8 +102,10 @@ export default function StakeholdersPage() {
             Add Investment
           </button>
           <button
-            onClick={() => navigate('/invite-members')}
+            onClick={() => canCreateInvites && navigate('/invite-members')}
+            disabled={!canCreateInvites}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!canCreateInvites ? inviteBlockedMessage || 'Invite access is locked for this account tier.' : undefined}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -143,7 +147,7 @@ export default function StakeholdersPage() {
               <div>
                 <div className="text-sm text-slate-400">Sub members</div>
                 <div className="text-2xl font-bold text-white">
-                  {subMemberCount}/{profile?.memberLimit || 0}
+                  {profile?.platformRole === 'platform_admin' ? `${subMemberCount}/∞` : `${subMemberCount}/2`}
                 </div>
               </div>
             </div>

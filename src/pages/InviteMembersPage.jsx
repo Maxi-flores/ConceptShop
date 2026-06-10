@@ -4,6 +4,7 @@ import { db } from '../firebase/config'
 import { useAuth } from '../context/AuthContext'
 import AlertCard from '../components/auth/AlertCard'
 import { buildInviteLink, createInviteRecord, revokeInviteRecord } from '../firebase/auth'
+import { canManageInvites, getAccountTierDescription, getAccountTierLabel, getInviteCapacityLabel, getInvitePermissionMessage } from '../utils/profile'
 
 const formatDate = (value) => {
   if (!value) return 'Not set'
@@ -37,7 +38,7 @@ const buildMailtoHref = ({ email, code, link, role, note }) => {
 }
 
 export default function InviteMembersPage() {
-  const { user, profile, isAdmin } = useAuth()
+  const { user, profile, isAdmin, isPlatformAdmin } = useAuth()
   const [invites, setInvites] = useState([])
   const [loadingInvites, setLoadingInvites] = useState(true)
   const [formError, setFormError] = useState('')
@@ -49,9 +50,13 @@ export default function InviteMembersPage() {
 
   const inviteScope = useMemo(() => getInviteScope(profile, user), [profile, user])
   const activeInviteCount = useMemo(() => invites.filter((invite) => invite.status === 'pending' || invite.status === 'accepted').length, [invites])
-  const memberLimit = Number(profile?.memberLimit || 0)
-  const billingPending = profile?.billingStatus === 'pending_payment'
-  const canInvite = isAdmin && memberLimit > 0 && !billingPending && activeInviteCount < memberLimit
+  const isPlatformOverride = isPlatformAdmin || profile?.platformRole === 'platform_admin'
+  const inviteBlockedMessage = getInvitePermissionMessage(profile)
+  const canInvite = canManageInvites(profile)
+  const inviteCapacityLabel = getInviteCapacityLabel(profile, activeInviteCount)
+  const accountTierLabel = getAccountTierLabel(profile)
+  const accountTierDescription = getAccountTierDescription(profile)
+  const hasInviteCapacity = isPlatformOverride || activeInviteCount < 2
 
   useEffect(() => {
     if (!inviteScope.value) {
@@ -105,13 +110,13 @@ export default function InviteMembersPage() {
     event.preventDefault()
     setFormError('')
 
-    if (!isAdmin) {
-      setFormError('Only admins can create invites.')
+    if (!canInvite) {
+      setFormError(inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.')
       return
     }
 
-    if (memberLimit <= 0) {
-      setFormError('Starter/free plans cannot invite members. Upgrade to Team or Business first.')
+    if (!isAdmin && !isPlatformOverride) {
+      setFormError('Only admins can create invites.')
       return
     }
 
@@ -120,8 +125,8 @@ export default function InviteMembersPage() {
       return
     }
 
-    if (!canInvite) {
-      setFormError(`You have reached your invite limit of ${memberLimit}.`)
+    if (!hasInviteCapacity) {
+      setFormError('You have reached your invite capacity of 2 sub members.')
       return
     }
 
@@ -175,7 +180,7 @@ export default function InviteMembersPage() {
     return (
       <div className="space-y-6">
         <AlertCard tone="warning">
-          Invite Members is available to admins only.
+          Invite Members is available to admins and platform admins only.
         </AlertCard>
       </div>
     )
@@ -192,19 +197,36 @@ export default function InviteMembersPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-surface-border bg-surface-darker/50 px-4 py-3 text-sm text-slate-300">
-          <div className="text-slate-500">Invite capacity</div>
-          <div className="mt-1 text-lg font-semibold text-white">
-            {activeInviteCount}/{memberLimit} active invites
+          <div className="rounded-2xl border border-surface-border bg-surface-darker/50 px-4 py-3 text-sm text-slate-300">
+            <div className="text-slate-500">Invite capacity</div>
+            <div className="mt-1 text-lg font-semibold text-white">
+              {inviteCapacityLabel}
+            </div>
           </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border border-surface-border bg-surface-card/70 p-5">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Account tier</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{accountTierLabel}</div>
+          <p className="mt-2 text-sm text-slate-400">{accountTierDescription}</p>
+        </div>
+        <div className="rounded-3xl border border-surface-border bg-surface-card/70 p-5">
+          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Invite access</div>
+          <div className="mt-2 text-2xl font-semibold text-white">
+            {canInvite ? 'Enabled' : 'Locked'}
+          </div>
+          <p className="mt-2 text-sm text-slate-400">
+            {canInvite
+              ? 'You can create and revoke invite links.'
+              : inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.'}
+          </p>
         </div>
       </div>
 
       {!canInvite && (
         <AlertCard tone="warning">
-          {billingPending
-            ? 'Payment integration coming next. Continue in pending_payment mode before inviting sub members.'
-            : 'Starter/free plans cannot invite members. Team and Business plans support up to 2 sub members.'}
+          {inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.'}
         </AlertCard>
       )}
 
@@ -286,8 +308,9 @@ export default function InviteMembersPage() {
 
             <button
               type="submit"
-              disabled={formLoading || !canInvite}
+              disabled={formLoading || !canInvite || !hasInviteCapacity}
               className="w-full rounded-xl bg-accent-gold px-5 py-3 font-semibold text-black transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+              title={!canInvite ? inviteBlockedMessage || 'Invite access is locked for this account tier.' : undefined}
             >
               {formLoading ? 'Creating invite...' : 'Create invite'}
             </button>
@@ -300,7 +323,7 @@ export default function InviteMembersPage() {
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-surface-border bg-surface-darker/50 p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Limit</div>
-                <div className="mt-2 text-2xl font-bold text-white">{memberLimit}</div>
+                <div className="mt-2 text-2xl font-bold text-white">{inviteCapacityLabel}</div>
               </div>
               <div className="rounded-2xl border border-surface-border bg-surface-darker/50 p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending</div>

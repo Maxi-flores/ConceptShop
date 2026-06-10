@@ -8,9 +8,10 @@ import { useLanguage } from '../context/LanguageContext'
 import { useTheme } from '../context/ThemeContext'
 import { subscribeToGroupOrders } from '../firebase/orders'
 import { subscribeToCampaigns, getMarketingOverview } from '../services/marketing'
+import { getUserDisplayName } from '../utils/profile'
 
 export default function DashboardPage() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const { myStake, totalPool, stakeholders, getTopStakeholders } = useStakeholder()
   const { t } = useLanguage()
   const { isDark } = useTheme()
@@ -70,7 +71,7 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('welcomeBack')}, {profile?.fullName?.split(' ')[0] || 'Stakeholder'}</h1>
+          <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('welcomeBack')}, {getUserDisplayName(profile, user).split(' ')[0] || 'ConceptSHOP'}</h1>
           <p className={isDark ? 'text-slate-400' : 'text-gray-500'}>{t('heresWhatsHappening')}</p>
         </div>
         <div className="flex items-center gap-3">

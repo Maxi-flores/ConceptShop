@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { useChat } from '../context/ChatContext'
+import { getUserDisplayName } from '../utils/profile'
 import {
   subscribeToProductMessages,
   sendProductMessage,
@@ -59,7 +60,7 @@ export default function ProductDiscussionPanel({
         productId,
         productName,
         user.uid,
-        profile?.displayName || user.email?.split('@')[0] || 'User',
+        getUserDisplayName(profile, user),
         input.trim()
       )
       setInput('')

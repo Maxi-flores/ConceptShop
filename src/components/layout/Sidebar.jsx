@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import { NAV_ITEMS } from '../../constants/navigation'
+import IdentityBadge from '../account/IdentityBadge'
 
 export default function Sidebar({ isOpen, onToggle }) {
   const location = useLocation()
@@ -104,22 +105,8 @@ export default function Sidebar({ isOpen, onToggle }) {
 
       {/* User Profile */}
       <div className={`p-3 border-t ${isDark ? 'border-surface-border' : 'border-gray-200'}`}>
-        <div className={`flex items-center gap-3 ${!isOpen && 'justify-center'}`}>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-medium text-sm">
-              {profile?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U'}
-            </span>
-          </div>
-          {isOpen && (
-            <div className="flex-1 min-w-0">
-              <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {profile?.fullName || 'User'}
-              </div>
-              <div className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                {profile?.role || 'stakeholder'}
-              </div>
-            </div>
-          )}
+        <div className={`${!isOpen ? 'justify-center' : ''}`}>
+          <IdentityBadge profile={profile} user={user} compact={!isOpen} showEmail={isOpen} />
         </div>
       </div>
     </aside>

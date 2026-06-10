@@ -1,6 +1,6 @@
 export const LICENSE_PLANS = [
   {
-    id: 'free_startup',
+    id: 'starter',
     title: 'Starter',
     price: 'EUR0/month',
     priceDisplay: '€0/month',
@@ -12,25 +12,25 @@ export const LICENSE_PLANS = [
     requiresPayment: false
   },
   {
-    id: 'admin_monthly',
+    id: 'team_monthly',
     title: 'Team',
     price: 'EUR6/month',
     priceDisplay: '€6/month',
     details: '1 admin, up to 2 team members, collaboration tools',
     description: 'For growing teams that need collaboration.',
-    billingStatus: 'pending_payment',
+    billingStatus: 'active',
     memberLimit: 2,
     badge: 'Monthly billing',
     requiresPayment: true
   },
   {
-    id: 'admin_yearly',
+    id: 'business_yearly',
     title: 'Business',
     price: 'EUR60/year',
     priceDisplay: '€60/year',
     details: '1 admin, up to 2 team members, annual billing savings',
     description: 'Lower annual cost for long-term growth.',
-    billingStatus: 'pending_payment',
+    billingStatus: 'active',
     memberLimit: 2,
     badge: 'Save €12',
     requiresPayment: true
@@ -79,11 +79,19 @@ export const BUILDING_OPTIONS = [
 ]
 
 export const normalizeLicensePlan = (licensePlan) => {
-  if (licensePlan === 'admin_monthly' || licensePlan === 'admin_yearly') {
-    return licensePlan
+  if (licensePlan === 'starter' || licensePlan === 'free' || licensePlan === 'free_startup') {
+    return 'starter'
   }
 
-  return 'free_startup'
+  if (licensePlan === 'team_monthly' || licensePlan === 'admin_monthly') {
+    return 'team_monthly'
+  }
+
+  if (licensePlan === 'business_yearly' || licensePlan === 'admin_yearly') {
+    return 'business_yearly'
+  }
+
+  return 'starter'
 }
 
 export const getPlanById = (licensePlan) => {

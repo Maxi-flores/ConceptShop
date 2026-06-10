@@ -5,6 +5,7 @@ import { db } from '../firebase/config'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLanguage } from '../context/LanguageContext'
+import IdentityBadge from '../components/account/IdentityBadge'
 
 const languages = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -147,23 +148,14 @@ export default function SettingsPage() {
               <div className="space-y-6">
                 <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('profileInformation')}</h2>
 
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-3xl font-bold text-white">
-                    {profile?.fullName?.charAt(0) || 'U'}
-                  </div>
-                  <div>
-                    <div className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{profile?.fullName || 'User'}</div>
-                    <div className={isDark ? 'text-slate-400' : 'text-gray-500'}>{user?.email}</div>
-                    <div className="text-sm text-primary-400 capitalize mt-1">{profile?.role || 'stakeholder'}</div>
-                  </div>
-                </div>
+                <IdentityBadge profile={profile} user={user} />
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>{t('fullName')}</label>
                     <input
                       type="text"
-                      defaultValue={profile?.fullName}
+                      defaultValue={profile?.displayName || profile?.fullName}
                       className={`w-full px-4 py-2.5 rounded-lg border ${isDark ? 'bg-surface-dark border-surface-border text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}
                     />
                   </div>

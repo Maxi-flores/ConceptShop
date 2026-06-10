@@ -4,16 +4,16 @@ import { LICENSE_PLANS } from '../config/plans'
 import { mergePendingOnboarding } from '../utils/onboardingState'
 
 const ctaLabels = {
-  free_startup: 'Start Free',
-  admin_monthly: 'Choose Team',
-  admin_yearly: 'Choose Yearly'
+  starter: 'Start Free',
+  team_monthly: 'Choose Team',
+  business_yearly: 'Choose Yearly'
 }
 
 export default function PricingPage() {
   const navigate = useNavigate()
 
   const handlePlanCta = (planId) => {
-    if (planId === 'free_startup') {
+    if (planId === 'starter') {
       mergePendingOnboarding({ onboardingSource: 'signup', licensePlan: planId, returnTo: '/signup' })
       navigate('/signup')
       return
@@ -78,7 +78,7 @@ export default function PricingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.08 }}
-                className={`rounded-3xl border p-6 ${plan.id === 'admin_yearly' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-card'}`}
+                className={`rounded-3xl border p-6 ${plan.id === 'business_yearly' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-card'}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -98,7 +98,7 @@ export default function PricingPage() {
                 <button
                   type="button"
                   onClick={() => handlePlanCta(plan.id)}
-                  className={`mt-6 w-full rounded-xl px-6 py-3 font-semibold transition-colors ${plan.id === 'free_startup' ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-accent-gold text-black hover:bg-amber-500'}`}
+                  className={`mt-6 w-full rounded-xl px-6 py-3 font-semibold transition-colors ${plan.id === 'starter' ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-accent-gold text-black hover:bg-amber-500'}`}
                 >
                   {ctaLabels[plan.id]}
                 </button>

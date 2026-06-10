@@ -6,13 +6,14 @@ import { useStakeholder } from '../../context/StakeholderContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { NAV_ITEMS, LANGUAGES } from '../../constants/navigation'
+import IdentityBadge from '../account/IdentityBadge'
 
 export default function TopBar() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [langMenuOpen, setLangMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { logout, profile, user } = useAuth()
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
   const { totalPool } = useStakeholder()
   const { isDark, toggleTheme } = useTheme()
@@ -37,6 +38,10 @@ export default function TopBar() {
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="hidden xl:block">
+            <IdentityBadge profile={profile} user={user} compact showEmail />
+          </div>
+
           {/* Pool Stats */}
           <div
             className={`hidden md:flex items-center gap-4 px-4 py-1.5 rounded-lg border ${

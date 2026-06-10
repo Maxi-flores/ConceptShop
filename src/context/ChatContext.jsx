@@ -9,6 +9,7 @@ import {
   markMessagesAsRead
 } from '../firebase/chat'
 import { useAuth } from './AuthContext'
+import { getUserDisplayName } from '../utils/profile'
 
 const ChatContext = createContext(null)
 
@@ -76,11 +77,11 @@ export function ChatProvider({ children }) {
     })
 
     // Set current user as online
-    setUserPresence(user.uid, profile?.fullName || 'User', 'online')
+    setUserPresence(user.uid, getUserDisplayName(profile, user), 'online')
 
     // Set offline on unmount
     return () => {
-      setUserPresence(user.uid, profile?.fullName || 'User', 'offline')
+      setUserPresence(user.uid, getUserDisplayName(profile, user), 'offline')
       unsubscribe()
     }
   }, [user, profile])
@@ -93,7 +94,7 @@ export function ChatProvider({ children }) {
       await sendChatMessage(
         currentRoom.id,
         user.uid,
-        profile?.fullName || 'User',
+        getUserDisplayName(profile, user),
         content,
         type
       )
