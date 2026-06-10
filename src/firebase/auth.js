@@ -51,6 +51,7 @@ const friendlyAuthErrors = {
   'auth/popup-blocked': 'Your browser blocked the Google sign-in popup. Try again or use the redirect flow.',
   'auth/cancelled-popup-request': 'The Google sign-in popup was cancelled.',
   'auth/operation-not-supported-in-this-environment': 'Google sign-in is not supported in this environment.',
+  'auth/network-request-failed': 'Network error while checking Google sign-in. Please try again.',
   'auth/missing-profile-email': MISSING_EMAIL_PROFILE_MESSAGE,
   'auth/missing-profile': MISSING_PROFILE_MESSAGE,
   'auth/missing-onboarding': MISSING_ONBOARDING_MESSAGE
@@ -615,6 +616,13 @@ export const getUserProfile = async (userId) => {
     return null
   } catch (error) {
     console.error('Error getting user profile:', error)
+    const code = error?.code || error?.name
+    if (code === 'permission-denied') {
+      throw asFriendlyError({ code: 'permission-denied' }, 'Firestore permission denied while reading your profile. Please try again or contact support.', 'permission-denied')
+    }
+    if (code === 'unavailable' || code === 'deadline-exceeded' || code === 'auth/network-request-failed' || String(error?.message || '').toLowerCase().includes('network')) {
+      throw asFriendlyError({ code: 'auth/network-request-failed' }, 'Network error while reading your Firestore profile. Please try again.', 'auth/network-request-failed')
+    }
     throw error
   }
 }

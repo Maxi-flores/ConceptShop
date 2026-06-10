@@ -65,9 +65,16 @@ export function AuthProvider({ children }) {
     try {
       const userRecord = await signInWithGoogle()
       const userProfile = await getUserProfile(userRecord.uid)
+
+      if (!userProfile) {
+        await logOut().catch(() => {})
+        throw new Error('This Google account is not registered yet. Please create an account or join with an invite code.')
+      }
+
       setProfile(userProfile)
       return userRecord
     } catch (err) {
+      console.error('Google login failed:', err)
       setError(err.message)
       throw err
     }

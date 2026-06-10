@@ -4,6 +4,7 @@ import GoogleAuthButton from '../components/auth/GoogleAuthButton'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
+  const GOOGLE_LOGIN_TIMEOUT_MS = 20000
   const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -82,13 +83,23 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setError('')
     setGoogleLoading(true)
+    let timeoutId = null
 
     try {
+      timeoutId = setTimeout(() => {
+        setError('Google sign-in is taking longer than expected. Please try again.')
+        setGoogleLoading(false)
+      }, GOOGLE_LOGIN_TIMEOUT_MS)
+
       await loginWithGoogle()
       navigate('/dashboard')
     } catch (err) {
+      console.error('LoginPage Google sign-in failed:', err)
       setError(err.message || 'Failed to sign in with Google')
     } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       setGoogleLoading(false)
     }
   }
