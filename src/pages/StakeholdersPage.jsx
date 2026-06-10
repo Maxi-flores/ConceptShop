@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useAuth } from '../context/AuthContext'
@@ -8,6 +9,7 @@ import { createInviteCode } from '../firebase/auth'
 export default function StakeholdersPage() {
   const { user, profile, isAdmin } = useAuth()
   const { stakeholders, myStake, totalPool, addInvestment, calculateSharePercentage } = useStakeholder()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [tierFilter, setTierFilter] = useState('all')
   const [showInvestModal, setShowInvestModal] = useState(false)
@@ -98,31 +100,13 @@ export default function StakeholdersPage() {
             Add Investment
           </button>
           <button
-            onClick={() => {
-              if (!canCreateInvites) {
-                setInviteError('Free Startup License includes 0 sub members. Upgrade to add sub members.')
-                return
-              }
-
-              if (billingPending) {
-                setInviteError('Payment integration coming next. Continue in pending_payment mode before inviting sub members.')
-                return
-              }
-
-              if (!canInviteMore) {
-                setInviteError(`You have reached your sub-member limit of ${profile?.memberLimit || 0}.`)
-                return
-              }
-
-              setShowInviteModal(true)
-            }}
-            disabled={!canCreateInvites || billingPending || !canInviteMore}
+            onClick={() => navigate('/invite-members')}
             className="px-4 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
-            Invite
+            Invite Members
           </button>
         </div>
       </div>
@@ -459,12 +443,12 @@ function InviteModal({ onClose, onGenerate, generatedCode, inviteError }) {
               <div className="p-3 bg-surface-dark rounded-lg text-sm text-slate-400">
                 Share this link:{' '}
                 <span className="text-primary-400 break-all">
-                  {window.location.origin}/invite/code?invite={generatedCode}
+                  {window.location.origin}/invite/code?code={generatedCode}
                 </span>
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/invite/code?invite=${generatedCode}`)
+                  navigator.clipboard.writeText(`${window.location.origin}/invite/code?code=${generatedCode}`)
                 }}
                 className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 rounded-lg font-medium transition-colors"
               >

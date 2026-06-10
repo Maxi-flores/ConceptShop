@@ -19,6 +19,7 @@ import ShippingPage from './pages/ShippingPage'
 import StockPage from './pages/StockPage'
 import SettingsPage from './pages/SettingsPage'
 import InvitePage from './pages/InvitePage'
+import InviteMembersPage from './pages/InviteMembersPage'
 
 export default function App() {
   return (
@@ -86,6 +87,13 @@ export default function App() {
         <ProtectedRoute>
           <MainLayout>
             <StakeholdersPage />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/invite-members" element={
+        <ProtectedRoute>
+          <MainLayout>
+            <InviteMembersPage />
           </MainLayout>
         </ProtectedRoute>
       } />

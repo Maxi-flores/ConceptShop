@@ -10,7 +10,7 @@ export default function Sidebar({ isOpen, onToggle }) {
   const { myStake, totalPool } = useStakeholder()
   const { isDark } = useTheme()
   const { t } = useLanguage()
-  const { user, profile } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
 
   return (
     <aside
@@ -76,6 +76,10 @@ export default function Sidebar({ isOpen, onToggle }) {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
+          if (item.adminOnly && !isAdmin) {
+            return null
+          }
+
           const isActive = location.pathname === item.path
           return (
             <Link

@@ -14,7 +14,7 @@ export default function InvitePage() {
 
   useEffect(() => {
     const stateInvite = location.state?.inviteCode
-    const queryInvite = searchParams.get('invite')
+    const queryInvite = searchParams.get('code') || searchParams.get('invite')
     const normalizedInitial = initialCode && initialCode !== 'code' ? initialCode : ''
     const nextInvite = (stateInvite || queryInvite || normalizedInitial || '').toUpperCase()
     if (nextInvite) {

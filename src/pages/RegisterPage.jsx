@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const { finishGoogleRedirectOnboarding } = useAuth()
 
   const [inviteCode, setInviteCode] = useState('')
+  const [inviteDetails, setInviteDetails] = useState(null)
   const [validatingInvite, setValidatingInvite] = useState(true)
   const [inviteValid, setInviteValid] = useState(false)
   const [error, setError] = useState('')
@@ -23,7 +24,8 @@ export default function RegisterPage() {
 
     const bootstrapInvite = async () => {
       const stateInvite = location.state?.inviteCode
-      const searchInvite = new URLSearchParams(location.search).get('invite')
+      const searchParams = new URLSearchParams(location.search)
+      const searchInvite = searchParams.get('code') || searchParams.get('invite')
       const storedInvite = readPendingOnboarding()?.inviteCode
       const fallbackInvite = routeInviteCode && routeInviteCode !== 'register' ? routeInviteCode : ''
       const normalizedInvite = normalizeInviteCode(stateInvite || searchInvite || fallbackInvite || storedInvite)
@@ -53,6 +55,7 @@ export default function RegisterPage() {
         })
 
         setInviteCode(validation.inviteCode)
+        setInviteDetails(validation.inviteData || null)
         setInviteValid(true)
 
         const redirectedUser = await finishGoogleRedirectOnboarding({
@@ -67,6 +70,7 @@ export default function RegisterPage() {
       } catch (inviteError) {
         if (!active) return
         setInviteValid(false)
+        setInviteDetails(null)
         setError(inviteError.message || 'Failed to verify invite code')
       } finally {
         if (active) {
@@ -131,8 +135,18 @@ export default function RegisterPage() {
           title="Create your invite-based account"
           description="Your invite is valid. Choose a plan, then create your account with Google or email and finish setup."
           invitePanel={(
-            <div className="rounded-2xl border border-accent-emerald/20 bg-accent-emerald/10 p-4 text-sm text-slate-200">
-              Invite confirmed for code <span className="font-mono text-white">{inviteCode}</span>
+            <div className="space-y-2 rounded-2xl border border-accent-emerald/20 bg-accent-emerald/10 p-4 text-sm text-slate-200">
+              <div>
+                Invite confirmed for code <span className="font-mono text-white">{inviteCode}</span>
+              </div>
+              {inviteDetails?.email && (
+                <div>
+                  This invite is reserved for <span className="font-medium text-white">{inviteDetails.email}</span>
+                </div>
+              )}
+              <div>
+                Role: <span className="font-medium text-white">{inviteDetails?.role || 'member'}</span>
+              </div>
             </div>
           )}
         />

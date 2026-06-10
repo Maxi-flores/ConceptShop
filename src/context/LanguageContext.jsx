@@ -11,6 +11,7 @@ const resources = {
       products: 'Products',
       orders: 'Orders',
       stakeholders: 'Stakeholders',
+      inviteMembers: 'Invite Members',
       marketing: 'Marketing',
       forecasting: 'Forecasting',
       shipping: 'Shipping',

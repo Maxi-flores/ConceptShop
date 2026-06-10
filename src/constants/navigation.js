@@ -20,6 +20,12 @@ export const NAV_ITEMS = [
     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
   },
   {
+    path: '/invite-members',
+    labelKey: 'inviteMembers',
+    icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3M7 7a4 4 0 110 8 4 4 0 010-8zm0 0V5m0 2v2m0 8v4m0-4H5m2 0h2',
+    adminOnly: true
+  },
+  {
     path: '/marketing',
     labelKey: 'marketing',
     icon: 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z'

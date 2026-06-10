@@ -42,6 +42,7 @@ googleProvider.setCustomParameters({
 const MISSING_EMAIL_PROFILE_MESSAGE = 'This account is not registered yet. Please join ConceptSHOP with an invite code first.'
 const MISSING_PROFILE_MESSAGE = 'This Google account is not registered yet. Please create an account or join with an invite code.'
 const MISSING_ONBOARDING_MESSAGE = 'Your onboarding session has expired. Please restart account creation.'
+const INVITE_EMAIL_MISMATCH_MESSAGE = 'This invite was sent to a different email address. Please sign in with the invited account.'
 const PROFILE_LOOKUP_TIMEOUT_MS = 8000
 const PROFILE_UNAVAILABLE_MESSAGE = 'Google sign-in worked, but ConceptSHOP could not reach the profile database. Please refresh or try again.'
 
@@ -56,6 +57,7 @@ const friendlyAuthErrors = {
   'auth/network-request-failed': 'Network error while checking Google sign-in. Please try again.',
   'auth/profile-unavailable': PROFILE_UNAVAILABLE_MESSAGE,
   'auth/profile-timeout': PROFILE_UNAVAILABLE_MESSAGE,
+  'auth/invite-email-mismatch': INVITE_EMAIL_MISMATCH_MESSAGE,
   'auth/missing-profile-email': MISSING_EMAIL_PROFILE_MESSAGE,
   'auth/missing-profile': MISSING_PROFILE_MESSAGE,
   'auth/missing-onboarding': MISSING_ONBOARDING_MESSAGE
@@ -113,11 +115,19 @@ const getInviteValidationError = (inviteData) => {
     return 'Invalid invite code'
   }
 
+  if (inviteData.status === 'revoked') {
+    return 'Invite code has been revoked'
+  }
+
+  if (inviteData.status && inviteData.status !== 'pending') {
+    return 'Invite code has already been used'
+  }
+
   if (inviteData.used) {
     return 'Invite code has already been used'
   }
 
-  if (inviteData.expiresAt && inviteData.expiresAt.toDate() < new Date()) {
+  if (inviteData.expiresAt && inviteData.expiresAt.toDate && inviteData.expiresAt.toDate() < new Date()) {
     return 'Invite code has expired'
   }
 
@@ -128,6 +138,148 @@ const getInviteValidationError = (inviteData) => {
   }
 
   return null
+}
+
+const getInviteDocRef = async (normalizedCode) => {
+  const directRef = doc(db, 'inviteCodes', normalizedCode)
+  const directDoc = await getDoc(directRef)
+
+  if (directDoc.exists()) {
+    return { ref: directRef, doc: directDoc }
+  }
+
+  const invitesRef = collection(db, 'inviteCodes')
+  const inviteQuery = query(invitesRef, where('code', '==', normalizedCode))
+  const snapshot = await getDocs(inviteQuery)
+
+  if (snapshot.empty) {
+    return { ref: directRef, doc: null }
+  }
+
+  const inviteDoc = snapshot.docs[0]
+  return { ref: inviteDoc.ref, doc: inviteDoc }
+}
+
+export const buildInviteLink = (code) => {
+  const normalizedCode = normalizeInviteCode(code)
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/invite/code?code=${encodeURIComponent(normalizedCode)}`
+  }
+
+  return `/invite/code?code=${encodeURIComponent(normalizedCode)}`
+}
+
+const buildInvitePayload = ({
+  code,
+  email = '',
+  role = 'member',
+  note = '',
+  createdByUid,
+  createdByEmail = '',
+  workspaceId = null,
+  expiresInDays = 14
+}) => ({
+  code,
+  email: email.trim(),
+  role: role === 'admin' ? 'admin' : 'member',
+  status: 'pending',
+  createdByUid,
+  createdByEmail: createdByEmail || '',
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  expiresAt: new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000),
+  acceptedByUid: null,
+  acceptedByEmail: null,
+  acceptedAt: null,
+  revokedByUid: null,
+  revokedAt: null,
+  workspaceId: workspaceId || null,
+  note: note || '',
+  useCount: 0,
+  used: false
+})
+
+export const createInviteRecord = async ({
+  createdByUid,
+  createdByEmail = '',
+  email = '',
+  role = 'member',
+  note = '',
+  workspaceId = null,
+  expiresInDays = 14
+}) => {
+  try {
+    let code = generateInviteCode()
+    let inviteRef = doc(db, 'inviteCodes', code)
+    let inviteDoc = await getDoc(inviteRef)
+
+    while (inviteDoc.exists()) {
+      code = generateInviteCode()
+      inviteRef = doc(db, 'inviteCodes', code)
+      inviteDoc = await getDoc(inviteRef)
+    }
+
+    const payload = buildInvitePayload({
+      code,
+      email,
+      role,
+      note,
+      createdByUid,
+      createdByEmail,
+      workspaceId,
+      expiresInDays
+    })
+
+    await setDoc(inviteRef, payload)
+
+    return {
+      code,
+      link: buildInviteLink(code),
+      invite: payload
+    }
+  } catch (error) {
+    console.error('Error creating invite record:', error)
+    throw error
+  }
+}
+
+export const revokeInviteRecord = async ({ code, revokedByUid }) => {
+  const normalizedCode = normalizeInviteCode(code)
+  const { ref, doc: inviteDoc } = await getInviteDocRef(normalizedCode)
+
+  if (!inviteDoc || !inviteDoc.exists()) {
+    throw new Error('Invalid invite code')
+  }
+
+  await updateDoc(ref, {
+    status: 'revoked',
+    revokedByUid,
+    revokedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  })
+}
+
+export const listInviteRecords = async ({ createdByUid = null, workspaceId = null }) => {
+  try {
+    const filterField = workspaceId ? 'workspaceId' : 'createdByUid'
+    const filterValue = workspaceId || createdByUid
+
+    if (!filterValue) {
+      return []
+    }
+
+    const invitesRef = collection(db, 'inviteCodes')
+    const inviteQuery = query(invitesRef, where(filterField, '==', filterValue))
+    const snapshot = await getDocs(inviteQuery)
+
+    return snapshot.docs.map((inviteDoc) => ({
+      id: inviteDoc.id,
+      ...inviteDoc.data()
+    }))
+  } catch (error) {
+    console.error('Error listing invite records:', error)
+    throw error
+  }
 }
 
 const getPasswordResetUrl = () => {
@@ -165,6 +317,9 @@ const buildUserProfilePayload = ({
   providerLabel,
   displayName,
   licensePlan,
+  role = 'admin',
+  billingStatus,
+  memberLimit,
   accountType,
   workspaceFocus,
   onboardingSource
@@ -174,6 +329,9 @@ const buildUserProfilePayload = ({
   const normalizedWorkspaceFocus = normalizeWorkspaceFocus(workspaceFocus)
   const licenseMeta = getLicenseMeta(normalizedPlan)
   const resolvedDisplayName = displayName || user.displayName || user.email?.split('@')[0] || 'User'
+  const resolvedRole = role === 'member' ? 'member' : 'admin'
+  const resolvedBillingStatus = billingStatus || licenseMeta.billingStatus
+  const resolvedMemberLimit = Number.isFinite(memberLimit) ? memberLimit : licenseMeta.memberLimit
 
   return {
     uid: user.uid,
@@ -181,17 +339,18 @@ const buildUserProfilePayload = ({
     displayName: resolvedDisplayName,
     fullName: resolvedDisplayName,
     authProvider: providerLabel,
-    role: 'admin',
+    role: resolvedRole,
     accountType: accountType || 'company',
     workspaceFocus: normalizedWorkspaceFocus,
     licensePlan: normalizedPlan,
-    billingStatus: licenseMeta.billingStatus,
-    memberLimit: licenseMeta.memberLimit,
+    billingStatus: resolvedBillingStatus,
+    memberLimit: resolvedMemberLimit,
     inviteCode: inviteValidation?.inviteCode || null,
     onboardingSource: normalizedSource,
     photoURL: user.photoURL || null,
     inviteId: inviteValidation?.inviteId || null,
-    invitedBy: inviteValidation?.inviteData?.createdBy || null,
+    invitedBy: inviteValidation?.inviteData?.createdByUid || inviteValidation?.inviteData?.createdBy || null,
+    workspaceId: inviteValidation?.inviteData?.workspaceId || null,
     lastLoginAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     authProviders: user.providerData?.map((provider) => provider.providerId).filter(Boolean) || []
@@ -249,27 +408,27 @@ const upsertStakeholderProfile = async (profilePayload) => {
   await setDoc(stakeholderRef, payload, { merge: true })
 }
 
-const consumeInviteCode = async (inviteValidation, userId) => {
+const consumeInviteCode = async (inviteValidation, user, profilePayload) => {
   if (!inviteValidation) return
 
   const inviteRef = doc(db, 'inviteCodes', inviteValidation.inviteId)
   const maxUses = Number(inviteValidation.inviteData.maxUses || 1)
-  const currentUseCount = Number(inviteValidation.inviteData.useCount || 0)
-  const nextUseCount = currentUseCount + 1
   const payload = {
     useCount: increment(1),
-    lastUsedAt: serverTimestamp()
+    used: true,
+    status: 'accepted',
+    acceptedByUid: user.uid,
+    acceptedByEmail: user.email || '',
+    acceptedAt: serverTimestamp(),
+    acceptedByProvider: profilePayload.authProvider,
+    lastUsedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
   }
 
   if (maxUses > 1) {
-    payload.usedBy = arrayUnion(userId)
+    payload.usedBy = arrayUnion(user.uid)
   } else {
-    payload.usedBy = userId
-  }
-
-  if (nextUseCount >= maxUses) {
-    payload.used = true
-    payload.usedAt = serverTimestamp()
+    payload.usedBy = user.uid
   }
 
   await updateDoc(inviteRef, payload)
@@ -295,17 +454,50 @@ const provisionAccount = async ({
   displayName,
   providerLabel,
   licensePlan,
+  role = 'admin',
+  billingStatus,
+  memberLimit,
   accountType,
   workspaceFocus,
   onboardingSource,
   inviteValidation
 }) => {
+  const inviteData = inviteValidation?.inviteData || null
+  const invitedRole = inviteData?.role === 'admin' ? 'admin' : 'member'
+  const resolvedRole = inviteValidation ? invitedRole : role
+  const inviterProfile = inviteData?.createdByUid ? await getUserProfile(inviteData.createdByUid).catch(() => null) : null
+  const inheritedPlan = inviterProfile?.licensePlan || 'free_startup'
+  const inheritedBillingStatus = inviterProfile?.billingStatus || 'free'
+  const resolvedPlan = inviteValidation ? inheritedPlan : licensePlan
+  const resolvedBilling = inviteValidation ? inheritedBillingStatus : billingStatus
+  const resolvedMemberLimit = inviteValidation
+    ? (
+        resolvedRole === 'member'
+          ? 0
+          : Number.isFinite(inviterProfile?.memberLimit)
+            ? inviterProfile.memberLimit
+            : getLicenseMeta(inheritedPlan).memberLimit
+      )
+    : memberLimit
+
+  if (inviteData?.email && user.email && inviteData.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+    await signOut(auth).catch(() => {})
+    throw asFriendlyError(
+      { code: 'auth/invite-email-mismatch' },
+      INVITE_EMAIL_MISMATCH_MESSAGE,
+      'auth/invite-email-mismatch'
+    )
+  }
+
   const profilePayload = buildUserProfilePayload({
     user,
     inviteValidation,
     providerLabel,
     displayName,
-    licensePlan,
+    licensePlan: resolvedPlan,
+    role: resolvedRole,
+    billingStatus: resolvedBilling,
+    memberLimit: resolvedMemberLimit,
     accountType,
     workspaceFocus,
     onboardingSource
@@ -313,7 +505,7 @@ const provisionAccount = async ({
 
   await upsertUserProfile(profilePayload)
   await upsertStakeholderProfile(profilePayload)
-  await consumeInviteCode(inviteValidation, user.uid)
+  await consumeInviteCode(inviteValidation, user, profilePayload)
 }
 
 const touchLastLogin = async (userId) => {
@@ -382,15 +574,12 @@ export const validateInviteCode = async (code) => {
       return { valid: false, error: 'Invalid invite code' }
     }
 
-    const invitesRef = collection(db, 'inviteCodes')
-    const inviteQuery = query(invitesRef, where('code', '==', normalizedCode))
-    const snapshot = await getDocs(inviteQuery)
+    const { doc: inviteDoc } = await getInviteDocRef(normalizedCode)
 
-    if (snapshot.empty) {
+    if (!inviteDoc || !inviteDoc.exists()) {
       return { valid: false, error: 'Invalid invite code' }
     }
 
-    const inviteDoc = snapshot.docs[0]
     const inviteData = inviteDoc.data()
     const validationError = getInviteValidationError(inviteData)
     if (validationError) {
@@ -429,6 +618,17 @@ export const createAccountWithEmail = async ({
     })
 
     const inviteValidation = await resolveInviteValidation(normalizedOptions.inviteCode, normalizedOptions.onboardingSource)
+    if (
+      inviteValidation?.inviteData?.email &&
+      inviteValidation.inviteData.email.trim().toLowerCase() !== email.trim().toLowerCase()
+    ) {
+      throw asFriendlyError(
+        { code: 'auth/invite-email-mismatch' },
+        INVITE_EMAIL_MISMATCH_MESSAGE,
+        'auth/invite-email-mismatch'
+      )
+    }
+
     const credential = await createUserWithEmailAndPassword(auth, email, password)
     createdUser = credential.user
 
@@ -726,24 +926,22 @@ export const retryCurrentProfileLookup = async (timeoutMs = PROFILE_LOOKUP_TIMEO
 // Create invite code (admin only)
 export const createInviteCode = async (creatorId, options = {}) => {
   try {
-    const code = generateInviteCode()
-    const inviteRef = doc(collection(db, 'inviteCodes'))
+    const createdByEmail = options.createdByEmail || ''
+    const workspaceId = options.workspaceId || null
+    const role = options.role || 'member'
+    const expiresInDays = options.expiresInDays || 14
 
-    await setDoc(inviteRef, {
-      code,
-      createdBy: creatorId,
-      createdAt: serverTimestamp(),
-      used: false,
-      useCount: 0,
-      maxUses: options.maxUses || 1,
-      assignedRole: options.role || 'stakeholder',
-      expiresAt: options.expiresIn
-        ? new Date(Date.now() + options.expiresIn)
-        : null,
-      note: options.note || ''
+    const record = await createInviteRecord({
+      createdByUid: creatorId,
+      createdByEmail,
+      email: options.email || '',
+      role,
+      note: options.note || '',
+      workspaceId,
+      expiresInDays
     })
 
-    return code
+    return record.code
   } catch (error) {
     console.error('Error creating invite code:', error)
     throw error
