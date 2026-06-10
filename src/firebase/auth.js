@@ -1,9 +1,13 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
+  GoogleAuthProvider
 } from 'firebase/auth'
 import {
   doc,
@@ -18,6 +22,32 @@ import {
   increment
 } from 'firebase/firestore'
 import { auth, db } from './config'
+
+const googleProvider = new GoogleAuthProvider()
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+})
+
+const getPasswordResetUrl = () => {
+  const configuredDomain = import.meta.env.VITE_APP_DOMAIN?.trim()
+  const normalizedConfiguredDomain = configuredDomain
+    ? configuredDomain.replace(/\/+$/, '')
+    : null
+
+  if (normalizedConfiguredDomain) {
+    const baseUrl = /^https?:\/\//i.test(normalizedConfiguredDomain)
+      ? normalizedConfiguredDomain
+      : `https://${normalizedConfiguredDomain}`
+
+    return `${baseUrl}/login`
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/login`
+  }
+
+  return undefined
+}
 
 // Generate unique invite code
 export const generateInviteCode = () => {
@@ -154,6 +184,81 @@ export const signIn = async (email, password) => {
   }
 }
 
+const ensureUserDocuments = async (user, defaults = {}) => {
+  const userRef = doc(db, 'users', user.uid)
+  const stakeholderRef = doc(db, 'stakeholders', user.uid)
+
+  const [userDoc, stakeholderDoc] = await Promise.all([
+    getDoc(userRef),
+    getDoc(stakeholderRef)
+  ])
+
+  const displayName = user.displayName || defaults.fullName || user.email?.split('@')[0] || 'User'
+  const sharedProfile = {
+    uid: user.uid,
+    email: user.email || '',
+    fullName: displayName,
+    photoURL: user.photoURL || null,
+    updatedAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp()
+  }
+
+  if (userDoc.exists()) {
+    await setDoc(userRef, sharedProfile, { merge: true })
+  } else {
+    await setDoc(userRef, {
+      ...sharedProfile,
+      role: defaults.role || 'stakeholder',
+      invitedBy: defaults.invitedBy || null,
+      inviteCode: defaults.inviteCode || null,
+      status: 'active',
+      shares: {
+        investment: 0,
+        participation: 0,
+        total: 0
+      },
+      createdAt: serverTimestamp()
+    })
+  }
+
+  if (stakeholderDoc.exists()) {
+    await setDoc(stakeholderRef, {
+      email: user.email || '',
+      fullName: displayName,
+      lastActivityAt: serverTimestamp()
+    }, { merge: true })
+  } else {
+    await setDoc(stakeholderRef, {
+      userId: user.uid,
+      email: user.email || '',
+      fullName: displayName,
+      tier: 'bronze',
+      investmentAmount: 0,
+      orderContribution: 0,
+      totalShares: 0,
+      sharePercentage: 0,
+      joinedAt: serverTimestamp(),
+      lastActivityAt: serverTimestamp(),
+      status: 'active'
+    })
+  }
+}
+
+// Sign in with Google
+export const signInWithGoogle = async () => {
+  try {
+    const userCredential = await signInWithPopup(auth, googleProvider)
+    const user = userCredential.user
+
+    await ensureUserDocuments(user)
+
+    return user
+  } catch (error) {
+    console.error('Error signing in with Google:', error)
+    throw error
+  }
+}
+
 // Sign out
 export const logOut = async () => {
   try {
@@ -167,9 +272,34 @@ export const logOut = async () => {
 // Reset password
 export const resetPassword = async (email) => {
   try {
-    await sendPasswordResetEmail(auth, email)
+    const passwordResetUrl = getPasswordResetUrl()
+
+    await sendPasswordResetEmail(auth, email, passwordResetUrl
+      ? {
+          url: passwordResetUrl,
+          handleCodeInApp: true
+        }
+      : undefined)
   } catch (error) {
     console.error('Error resetting password:', error)
+    throw error
+  }
+}
+
+export const verifyResetCode = async (code) => {
+  try {
+    return await verifyPasswordResetCode(auth, code)
+  } catch (error) {
+    console.error('Error verifying reset code:', error)
+    throw error
+  }
+}
+
+export const completePasswordReset = async (code, newPassword) => {
+  try {
+    await confirmPasswordReset(auth, code, newPassword)
+  } catch (error) {
+    console.error('Error completing password reset:', error)
     throw error
   }
 }

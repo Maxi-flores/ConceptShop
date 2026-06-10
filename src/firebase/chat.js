@@ -11,7 +11,8 @@ import {
   onSnapshot,
   serverTimestamp,
   getDoc,
-  getDocs
+  getDocs,
+  setDoc
 } from 'firebase/firestore'
 import { db } from './config'
 
@@ -153,7 +154,6 @@ export const setUserPresence = async (userId, userName, status = 'online') => {
         lastSeen: serverTimestamp()
       })
     } else {
-      const { setDoc } = await import('firebase/firestore')
       await setDoc(presenceRef, {
         userId,
         status,

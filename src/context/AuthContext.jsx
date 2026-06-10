@@ -1,7 +1,16 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../firebase/config'
-import { getUserProfile, signIn, logOut, signUpWithInvite, resetPassword } from '../firebase/auth'
+import {
+  getUserProfile,
+  signIn,
+  signInWithGoogle,
+  logOut,
+  signUpWithInvite,
+  resetPassword,
+  verifyResetCode,
+  completePasswordReset
+} from '../firebase/auth'
 
 const AuthContext = createContext(null)
 
@@ -35,6 +44,19 @@ export function AuthProvider({ children }) {
     setError(null)
     try {
       const user = await signIn(email, password)
+      const userProfile = await getUserProfile(user.uid)
+      setProfile(userProfile)
+      return user
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const loginWithGoogle = async () => {
+    setError(null)
+    try {
+      const user = await signInWithGoogle()
       const userProfile = await getUserProfile(user.uid)
       setProfile(userProfile)
       return user
@@ -78,15 +100,38 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const validateResetCode = async (code) => {
+    setError(null)
+    try {
+      return await verifyResetCode(code)
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const confirmResetPassword = async (code, newPassword) => {
+    setError(null)
+    try {
+      await completePasswordReset(code, newPassword)
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
   const value = {
     user,
     profile,
     loading,
     error,
     login,
+    loginWithGoogle,
     register,
     logout,
     sendResetEmail,
+    validateResetCode,
+    confirmResetPassword,
     isAdmin: profile?.role === 'admin',
     isStakeholder: profile?.role === 'stakeholder' || profile?.role === 'admin'
   }
