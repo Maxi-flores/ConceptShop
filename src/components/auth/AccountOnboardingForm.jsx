@@ -320,7 +320,7 @@ export default function AccountOnboardingForm({
                         : requiresPayment && !paymentSelected
                           ? 'Continue to payment'
                           : requiresPayment
-                            ? 'Create account in pending_payment mode'
+                            ? 'Create account and save billing as pending payment'
                             : 'Create account'}
                     </button>
                   </form>

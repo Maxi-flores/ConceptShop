@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
 import AuthShell from '../components/auth/AuthShell'
 import AlertCard from '../components/auth/AlertCard'
 import OptionTile from '../components/auth/OptionTile'
 import { PAYMENT_METHODS, getLicenseMeta, getPlanById, normalizeLicensePlan, planRequiresPayment } from '../config/plans'
-import { db } from '../firebase/config'
+import { updateUserProfile } from '../firebase/userProfile'
 import { mergePendingOnboarding, readPendingOnboarding } from '../utils/onboardingState'
 
 export default function PaymentPage() {
@@ -55,18 +54,16 @@ export default function PaymentPage() {
 
     try {
       if (user?.uid) {
-        await setDoc(doc(db, 'users', user.uid), {
+        await updateUserProfile(user.uid, {
           licensePlan: plan.id,
           billingStatus,
           memberLimit: planMeta.memberLimit,
           paymentMethodSummary: {
             type: selectedMethod,
             status: billingStatus === 'free' ? 'not_required' : 'pending_payment',
-            last4: '',
-            updatedAt: serverTimestamp()
+            last4: ''
           },
-          updatedAt: serverTimestamp()
-        }, { merge: true })
+        })
         await refreshProfile().catch(() => {})
       } else {
         mergePendingOnboarding({
@@ -79,7 +76,7 @@ export default function PaymentPage() {
       setStatusMessage(
         plan.id === 'starter'
           ? 'Basic plan applied. Your account remains on the free tier.'
-          : `${plan.priceDisplay} selected. Payment integration coming next. Continue in pending_payment mode.`
+          : 'Stripe checkout is not connected yet. This plan has been saved as pending payment.'
       )
       setSubmitted(true)
     } catch (error) {
@@ -137,7 +134,7 @@ export default function PaymentPage() {
             <div className="text-xs uppercase tracking-[0.25em] text-accent-gold">Payment step</div>
             <h1 className="text-3xl font-bold text-white">Choose how billing should start</h1>
             <p className="text-slate-400">
-              Payment integration coming next. Continue in pending_payment mode until a real checkout flow is connected.
+              Stripe checkout is not connected yet. This plan has been saved as pending payment.
             </p>
 
             <AlertCard tone="warning">

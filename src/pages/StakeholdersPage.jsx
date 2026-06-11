@@ -21,7 +21,8 @@ export default function StakeholdersPage() {
   const billingPending = profile?.billingStatus === 'pending_payment'
   const canCreateInvites = canManageInvites(profile)
   const inviteBlockedMessage = getInvitePermissionMessage(profile)
-  const canInviteMore = profile?.platformRole === 'platform_admin' || subMemberCount < 2
+  const memberLimit = Number.isFinite(profile?.memberLimit) ? profile.memberLimit : 0
+  const canInviteMore = profile?.platformRole === 'platform_admin' || memberLimit === -1 || subMemberCount < memberLimit
 
   const filteredStakeholders = stakeholders.filter(s => {
     const matchesSearch = s.fullName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -55,17 +56,17 @@ export default function StakeholdersPage() {
     setInviteError('')
 
     if (!canCreateInvites) {
-      setInviteError(inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.')
+      setInviteError(inviteBlockedMessage || 'Invite access is locked for this account.')
       return
     }
 
     if (billingPending && profile?.platformRole !== 'platform_admin') {
-      setInviteError('Payment integration coming next. Continue in pending_payment mode before inviting sub members.')
+      setInviteError('Stripe checkout is not connected yet. This plan has been saved as pending payment.')
       return
     }
 
     if (!canInviteMore) {
-      setInviteError('You have reached your invite limit of 2 sub members.')
+      setInviteError(memberLimit === 5 ? 'You have reached your invite limit of 5 sub members.' : 'You have reached your invite limit.')
       return
     }
 
@@ -87,7 +88,7 @@ export default function StakeholdersPage() {
           <p className="text-slate-400">{totalPool.activeStakeholders} active stakeholders</p>
           {billingPending && (
             <p className="mt-2 text-sm text-accent-gold">
-              Payment integration coming next. Continue in pending_payment mode.
+              Stripe checkout is not connected yet. This plan has been saved as pending payment.
             </p>
           )}
         </div>
@@ -145,10 +146,10 @@ export default function StakeholdersPage() {
                 </div>
               </div>
               <div>
-                <div className="text-sm text-slate-400">Sub members</div>
-                <div className="text-2xl font-bold text-white">
-                  {profile?.platformRole === 'platform_admin' ? `${subMemberCount}/∞` : `${subMemberCount}/2`}
-                </div>
+              <div className="text-sm text-slate-400">Sub members</div>
+              <div className="text-2xl font-bold text-white">
+                  {profile?.platformRole === 'platform_admin' ? `${subMemberCount}/∞` : memberLimit === -1 ? `${subMemberCount}/∞` : `${subMemberCount}/${memberLimit}`}
+              </div>
               </div>
             </div>
           </div>

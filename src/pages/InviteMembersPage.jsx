@@ -56,7 +56,8 @@ export default function InviteMembersPage() {
   const inviteCapacityLabel = getInviteCapacityLabel(profile, activeInviteCount)
   const accountTierLabel = getAccountTierLabel(profile)
   const accountTierDescription = getAccountTierDescription(profile)
-  const hasInviteCapacity = isPlatformOverride || activeInviteCount < 2
+  const memberLimit = Number.isFinite(profile?.memberLimit) ? profile.memberLimit : 0
+  const hasInviteCapacity = isPlatformOverride || memberLimit === -1 || activeInviteCount < memberLimit
 
   useEffect(() => {
     if (!inviteScope.value) {
@@ -111,7 +112,7 @@ export default function InviteMembersPage() {
     setFormError('')
 
     if (!canInvite) {
-      setFormError(inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.')
+      setFormError(inviteBlockedMessage || 'Invite access is locked for this account.')
       return
     }
 
@@ -126,7 +127,7 @@ export default function InviteMembersPage() {
     }
 
     if (!hasInviteCapacity) {
-      setFormError('You have reached your invite capacity of 2 sub members.')
+      setFormError(memberLimit === 5 ? 'You have reached your invite capacity of 5 members.' : 'You have reached your invite capacity.')
       return
     }
 
@@ -219,14 +220,14 @@ export default function InviteMembersPage() {
           <p className="mt-2 text-sm text-slate-400">
             {canInvite
               ? 'You can create and revoke invite links.'
-              : inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.'}
+              : inviteBlockedMessage || 'Invite access is locked for this account.'}
           </p>
         </div>
       </div>
 
       {!canInvite && (
         <AlertCard tone="warning">
-          {inviteBlockedMessage || 'Starter accounts cannot invite team members. Upgrade to Team or Business, or use a platform admin account.'}
+          {inviteBlockedMessage || 'Invite access is locked for this account.'}
         </AlertCard>
       )}
 

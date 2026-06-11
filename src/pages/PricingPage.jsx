@@ -5,8 +5,8 @@ import { mergePendingOnboarding } from '../utils/onboardingState'
 
 const ctaLabels = {
   starter: 'Start Free',
-  team_monthly: 'Choose Team',
-  business_yearly: 'Choose Yearly'
+  premium: 'Choose Premium',
+  pro: 'Choose Pro'
 }
 
 export default function PricingPage() {
@@ -78,7 +78,7 @@ export default function PricingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.08 }}
-                className={`rounded-3xl border p-6 ${plan.id === 'business_yearly' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-card'}`}
+                className={`rounded-3xl border p-6 ${plan.id === 'pro' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-card'}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -113,13 +113,13 @@ export default function PricingPage() {
           <div className="rounded-3xl border border-surface-border bg-surface-card p-8">
             <h2 className="text-2xl font-semibold text-white">What each plan includes</h2>
             <p className="mt-3 text-slate-400">
-              Every plan keeps one admin at the center. Team and Business include up to two team members, while the free plan is a simple starting point.
+              Every plan keeps one admin at the center. Basic includes up to 2 members, Premium includes up to 5, and Pro scales without a fixed member cap.
             </p>
           </div>
           <div className="rounded-3xl border border-surface-border bg-surface-card p-8">
             <h2 className="text-2xl font-semibold text-white">Billing stays honest</h2>
             <p className="mt-3 text-slate-400">
-              Paid plans go through the payment placeholder first. If a real processor is not wired in yet, the workspace stays in pending_payment mode instead of pretending billing is complete.
+              Paid plans go through the payment placeholder first. If a real processor is not wired in yet, the workspace is saved as pending payment instead of pretending billing is complete.
             </p>
           </div>
         </div>

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { updateProfile } from 'firebase/auth'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { useNavigate } from 'react-router-dom'
-import { auth, db } from '../../firebase/config'
+import { auth } from '../../firebase/config'
+import { updateUserProfile } from '../../firebase/userProfile'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
-import { LICENSE_PLANS, getLicenseMeta, getPlanById, normalizeLicensePlan } from '../../config/plans'
+import { LICENSE_PLANS, normalizeLicensePlan } from '../../config/plans'
 import {
   canManageInvites,
   getInviteCapacityLabel,
@@ -97,12 +97,27 @@ const createFormFromProfile = (profile = {}) => ({
 
 const sanitizeLast4 = (value) => String(value || '').replace(/[^a-zA-Z0-9]/g, '').slice(-4)
 
-const SectionCard = ({ id, eyebrow, title, description, children, className = '' }) => (
+const SectionCard = ({ id, eyebrow, title, description, children, className = '', status = null }) => (
   <section id={id} className={`rounded-3xl border border-surface-border bg-surface-card/70 p-6 ${className}`.trim()}>
-    <div className="mb-5">
-      <div className="text-xs uppercase tracking-[0.25em] text-slate-500">{eyebrow}</div>
-      <h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2>
-      {description && <p className="mt-2 max-w-3xl text-sm text-slate-400">{description}</p>}
+    <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
+        <div className="text-xs uppercase tracking-[0.25em] text-slate-500">{eyebrow}</div>
+        <h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2>
+        {description && <p className="mt-2 max-w-3xl text-sm text-slate-400">{description}</p>}
+      </div>
+      {status && (
+        <div
+          className={`inline-flex w-fit rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${
+            status.type === 'error'
+              ? 'border-red-500/30 bg-red-500/10 text-red-300'
+              : status.type === 'saving'
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                : 'border-accent-emerald/30 bg-accent-emerald/10 text-accent-emerald'
+          }`}
+        >
+          {status.label}
+        </div>
+      )}
     </div>
     {children}
   </section>
@@ -160,7 +175,7 @@ const IntegrationCard = ({ title, data, onChange, statusOptions, isDark, showTok
         )}
 
         <div className={`rounded-xl border px-3 py-2 text-xs ${isDark ? 'border-surface-border bg-surface-darker/60 text-slate-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-          Secrets should be moved to backend storage before production.
+          Secret not stored — backend vault required.
         </div>
       </div>
     </div>
@@ -175,6 +190,14 @@ export default function SettingsControlCenter() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
   const [logoPreview, setLogoPreview] = useState('')
+  const [sectionStatus, setSectionStatus] = useState({
+    profile: null,
+    workspace: null,
+    billing: null,
+    payments: null,
+    email: null,
+    integrations: null
+  })
 
   useEffect(() => {
     setForm(createFormFromProfile(profile || {}))
@@ -187,6 +210,7 @@ export default function SettingsControlCenter() {
   const currentBillingSummary = getPlanBillingSummary(profile)
   const currentInviteCapacity = getInviteCapacityLabel(profile, 0)
   const canInvite = canManageInvites(profile)
+  const memberLimitLabel = profile?.memberLimit === -1 ? 'Unlimited' : (profile?.memberLimit ?? 0)
 
   const updateForm = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -210,100 +234,64 @@ export default function SettingsControlCenter() {
     setForm((prev) => ({ ...prev, emailPipeline: { ...prev.emailPipeline, ...value } }))
   }
 
-  const persistProfile = async (patch, successText = 'Settings saved successfully') => {
+  const persistProfile = async (sectionKey, patch, successText = 'Settings saved successfully') => {
     if (!user?.uid) return
 
-    const userRef = doc(db, 'users', user.uid)
-    await setDoc(userRef, {
-      ...patch,
-      updatedAt: serverTimestamp()
-    }, { merge: true })
-    await refreshProfile().catch(() => {})
-    setMessage({ type: 'success', text: successText })
-  }
-
-  const handleSaveAll = async () => {
-    setSaving(true)
-    setMessage(null)
+    setSectionStatus((prev) => ({
+      ...prev,
+      [sectionKey]: { type: 'saving', label: 'Saving...' }
+    }))
 
     try {
-      const payload = {
-        displayName: form.displayName.trim(),
-        workspaceName: form.workspaceName.trim(),
-        businessName: form.businessName.trim(),
-        logoUrl: form.logoUrl.trim(),
-        photoURL: profile?.photoURL || form.photoURL || null,
-        emailPipeline: {
-          provider: form.emailPipeline.provider,
-          senderEmail: form.emailPipeline.senderEmail.trim(),
-          connectionStatus: form.emailPipeline.connectionStatus,
-          tokenLast4: sanitizeLast4(form.emailPipeline.tokenInput || form.emailPipeline.tokenLast4),
-          updatedAt: serverTimestamp()
-        },
-        integrations: {
-          stripe: {
-            status: form.integrations.stripe.status,
-            publishableKeyLast4: sanitizeLast4(form.integrations.stripe.tokenInput || form.integrations.stripe.publishableKeyLast4),
-            endpointUrl: form.integrations.stripe.endpointUrl.trim(),
-            updatedAt: serverTimestamp()
-          },
-          crm: {
-            status: form.integrations.crm.status,
-            endpointUrl: form.integrations.crm.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.crm.tokenInput || form.integrations.crm.tokenLast4),
-            updatedAt: serverTimestamp()
-          },
-          sql: {
-            status: form.integrations.sql.status,
-            endpointUrl: form.integrations.sql.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.sql.tokenInput || form.integrations.sql.tokenLast4),
-            updatedAt: serverTimestamp()
-          },
-          aws: {
-            status: form.integrations.aws.status,
-            endpointUrl: form.integrations.aws.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.aws.tokenInput || form.integrations.aws.tokenLast4),
-            updatedAt: serverTimestamp()
-          },
-          shipping: {
-            status: form.integrations.shipping.status,
-            endpointUrl: form.integrations.shipping.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.shipping.tokenInput || form.integrations.shipping.tokenLast4),
-            updatedAt: serverTimestamp()
-          },
-          inventory: {
-            status: form.integrations.inventory.status,
-            endpointUrl: form.integrations.inventory.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.inventory.tokenInput || form.integrations.inventory.tokenLast4),
-            updatedAt: serverTimestamp()
-          },
-          webhook: {
-            status: form.integrations.webhook.status,
-            endpointUrl: form.integrations.webhook.endpointUrl.trim(),
-            tokenLast4: sanitizeLast4(form.integrations.webhook.tokenInput || form.integrations.webhook.tokenLast4),
-            updatedAt: serverTimestamp()
-          }
-        },
-        paymentMethodSummary: {
-          type: form.paymentMethodSummary.type,
-          status: form.paymentMethodSummary.status,
-          last4: sanitizeLast4(form.paymentMethodSummary.last4),
-          updatedAt: serverTimestamp()
-        }
-      }
-
-      await persistProfile(payload, 'Settings saved successfully')
-
-      if (auth.currentUser && form.displayName.trim() && auth.currentUser.displayName !== form.displayName.trim()) {
-        await updateProfile(auth.currentUser, { displayName: form.displayName.trim() }).catch(() => {})
-      }
+      await updateUserProfile(user.uid, patch)
+      await refreshProfile().catch(() => {})
+      setSectionStatus((prev) => ({
+        ...prev,
+        [sectionKey]: { type: 'success', label: 'Saved' }
+      }))
+      setMessage({ type: 'success', text: successText })
     } catch (error) {
-      console.error('Error saving settings profile:', {
+      console.error(`Error saving ${sectionKey} settings:`, {
         code: error?.code,
         message: error?.message,
         error
       })
-      setMessage({ type: 'error', text: error?.message || 'Failed to save settings' })
+      setSectionStatus((prev) => ({
+        ...prev,
+        [sectionKey]: { type: 'error', label: 'Error' }
+      }))
+      setMessage({ type: 'error', text: error?.message || `Failed to save ${sectionKey}` })
+      throw error
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      await persistProfile('profile', {
+        displayName: form.displayName.trim()
+      }, 'Profile saved successfully')
+
+      if (auth.currentUser && form.displayName.trim() && auth.currentUser.displayName !== form.displayName.trim()) {
+        await updateProfile(auth.currentUser, { displayName: form.displayName.trim() }).catch(() => {})
+      }
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
+  const handleSaveWorkspace = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      await persistProfile('workspace', {
+        workspaceName: form.workspaceName.trim(),
+        businessName: form.businessName.trim(),
+        logoUrl: form.logoUrl.trim(),
+        photoURL: profile?.photoURL || form.photoURL || null
+      }, 'Workspace branding saved successfully')
     } finally {
       setSaving(false)
       setTimeout(() => setMessage(null), 3500)
@@ -315,15 +303,14 @@ export default function SettingsControlCenter() {
     setSaving(true)
     setMessage(null)
     try {
-      await persistProfile({
+      await persistProfile('billing', {
         licensePlan: 'starter',
         billingStatus: 'free',
-        memberLimit: 0,
+        memberLimit: 2,
         paymentMethodSummary: {
           type: form.paymentMethodSummary.type,
           status: 'not_required',
           last4: sanitizeLast4(form.paymentMethodSummary.last4),
-          updatedAt: serverTimestamp()
         }
       }, 'Basic plan applied')
     } catch (error) {
@@ -344,20 +331,219 @@ export default function SettingsControlCenter() {
     })
   }
 
+  const handlePaidPlanSelection = async (selectedPlan) => {
+    if (selectedPlan === 'starter') {
+      await applyBasicPlan()
+      return
+    }
+
+    routeToPayment(selectedPlan)
+  }
+
+  const handleSavePayments = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      await persistProfile('payments', {
+        paymentMethodSummary: {
+          type: form.paymentMethodSummary.type,
+          status: form.paymentMethodSummary.status,
+          last4: sanitizeLast4(form.paymentMethodSummary.last4)
+        },
+        integrations: {
+          ...profile?.integrations,
+          stripe: {
+            status: form.integrations.stripe.status,
+            publishableKeyLast4: sanitizeLast4(form.integrations.stripe.tokenInput || form.integrations.stripe.publishableKeyLast4),
+            endpointUrl: form.integrations.stripe.endpointUrl.trim()
+          }
+        }
+      }, 'Payment metadata saved successfully')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
+  const handleSaveEmail = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      await persistProfile('email', {
+        emailPipeline: {
+          provider: form.emailPipeline.provider,
+          senderEmail: form.emailPipeline.senderEmail.trim(),
+          connectionStatus: form.emailPipeline.connectionStatus,
+          tokenLast4: sanitizeLast4(form.emailPipeline.tokenInput || form.emailPipeline.tokenLast4)
+        }
+      }, 'Email pipeline saved successfully')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
+  const handleSaveIntegrations = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      await persistProfile('integrations', {
+        integrations: {
+          stripe: {
+            status: form.integrations.stripe.status,
+            publishableKeyLast4: sanitizeLast4(form.integrations.stripe.tokenInput || form.integrations.stripe.publishableKeyLast4),
+            endpointUrl: form.integrations.stripe.endpointUrl.trim()
+          },
+          crm: {
+            status: form.integrations.crm.status,
+            endpointUrl: form.integrations.crm.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.crm.tokenInput || form.integrations.crm.tokenLast4)
+          },
+          sql: {
+            status: form.integrations.sql.status,
+            endpointUrl: form.integrations.sql.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.sql.tokenInput || form.integrations.sql.tokenLast4)
+          },
+          aws: {
+            status: form.integrations.aws.status,
+            endpointUrl: form.integrations.aws.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.aws.tokenInput || form.integrations.aws.tokenLast4)
+          },
+          shipping: {
+            status: form.integrations.shipping.status,
+            endpointUrl: form.integrations.shipping.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.shipping.tokenInput || form.integrations.shipping.tokenLast4)
+          },
+          inventory: {
+            status: form.integrations.inventory.status,
+            endpointUrl: form.integrations.inventory.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.inventory.tokenInput || form.integrations.inventory.tokenLast4)
+          },
+          webhook: {
+            status: form.integrations.webhook.status,
+            endpointUrl: form.integrations.webhook.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.webhook.tokenInput || form.integrations.webhook.tokenLast4)
+          }
+        }
+      }, 'Integrations saved successfully')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
+  const handleSaveAll = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      setSectionStatus({
+        profile: { type: 'saving', label: 'Saving...' },
+        workspace: { type: 'saving', label: 'Saving...' },
+        billing: { type: 'saving', label: 'Saving...' },
+        payments: { type: 'saving', label: 'Saving...' },
+        email: { type: 'saving', label: 'Saving...' },
+        integrations: { type: 'saving', label: 'Saving...' }
+      })
+
+      await updateUserProfile(user.uid, {
+        displayName: form.displayName.trim(),
+        workspaceName: form.workspaceName.trim(),
+        businessName: form.businessName.trim(),
+        logoUrl: form.logoUrl.trim(),
+        photoURL: profile?.photoURL || form.photoURL || null,
+        licensePlan: profile?.licensePlan || 'starter',
+        billingStatus: profile?.billingStatus || 'free',
+        memberLimit: profile?.memberLimit ?? 2,
+        paymentMethodSummary: {
+          type: form.paymentMethodSummary.type,
+          status: form.paymentMethodSummary.status,
+          last4: sanitizeLast4(form.paymentMethodSummary.last4)
+        },
+        emailPipeline: {
+          provider: form.emailPipeline.provider,
+          senderEmail: form.emailPipeline.senderEmail.trim(),
+          connectionStatus: form.emailPipeline.connectionStatus,
+          tokenLast4: sanitizeLast4(form.emailPipeline.tokenInput || form.emailPipeline.tokenLast4)
+        },
+        integrations: {
+          stripe: {
+            status: form.integrations.stripe.status,
+            publishableKeyLast4: sanitizeLast4(form.integrations.stripe.tokenInput || form.integrations.stripe.publishableKeyLast4),
+            endpointUrl: form.integrations.stripe.endpointUrl.trim()
+          },
+          crm: {
+            status: form.integrations.crm.status,
+            endpointUrl: form.integrations.crm.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.crm.tokenInput || form.integrations.crm.tokenLast4)
+          },
+          sql: {
+            status: form.integrations.sql.status,
+            endpointUrl: form.integrations.sql.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.sql.tokenInput || form.integrations.sql.tokenLast4)
+          },
+          aws: {
+            status: form.integrations.aws.status,
+            endpointUrl: form.integrations.aws.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.aws.tokenInput || form.integrations.aws.tokenLast4)
+          },
+          shipping: {
+            status: form.integrations.shipping.status,
+            endpointUrl: form.integrations.shipping.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.shipping.tokenInput || form.integrations.shipping.tokenLast4)
+          },
+          inventory: {
+            status: form.integrations.inventory.status,
+            endpointUrl: form.integrations.inventory.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.inventory.tokenInput || form.integrations.inventory.tokenLast4)
+          },
+          webhook: {
+            status: form.integrations.webhook.status,
+            endpointUrl: form.integrations.webhook.endpointUrl.trim(),
+            tokenLast4: sanitizeLast4(form.integrations.webhook.tokenInput || form.integrations.webhook.tokenLast4)
+          }
+        }
+      })
+
+      await refreshProfile().catch(() => {})
+      setSectionStatus({
+        profile: { type: 'success', label: 'Saved' },
+        workspace: { type: 'success', label: 'Saved' },
+        billing: { type: 'success', label: 'Saved' },
+        payments: { type: 'success', label: 'Saved' },
+        email: { type: 'success', label: 'Saved' },
+        integrations: { type: 'success', label: 'Saved' }
+      })
+      setMessage({ type: 'success', text: 'All settings saved successfully' })
+    } catch (error) {
+      console.error('Error saving all settings:', error)
+      setSectionStatus((prev) => ({
+        ...prev,
+        profile: { type: 'error', label: 'Error' },
+        workspace: { type: 'error', label: 'Error' },
+        billing: { type: 'error', label: 'Error' },
+        payments: { type: 'error', label: 'Error' },
+        email: { type: 'error', label: 'Error' },
+        integrations: { type: 'error', label: 'Error' }
+      }))
+      setMessage({ type: 'error', text: error?.message || 'Failed to save settings' })
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMessage(null), 3500)
+    }
+  }
+
   const inviteCapacityText = isPlatformAdmin
     ? 'Unlimited / admin override'
     : currentInviteCapacity
 
   const planCards = LICENSE_PLANS.map((plan) => {
     const isCurrent = normalizeLicensePlan(profile?.licensePlan) === plan.id
-    const planLabel = plan.id === 'starter' ? 'Basic' : plan.id === 'team_monthly' ? 'Premium' : 'Pro'
     const buttonText = plan.id === 'starter'
       ? isCurrent ? 'Current plan' : 'Apply Basic'
-      : isCurrent ? 'Current plan' : `Switch to ${planLabel}`
+      : isCurrent ? 'Current plan' : `Switch to ${plan.title}`
 
     return {
       ...plan,
-      planLabel,
       isCurrent,
       buttonText
     }
@@ -399,7 +585,7 @@ export default function SettingsControlCenter() {
           <div className="rounded-2xl border border-surface-border bg-surface-card/70 px-4 py-3">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Billing</div>
             <div className="mt-1 text-lg font-semibold text-white">{profile?.billingStatus || 'free'}</div>
-            <div className="text-xs text-slate-400">Member limit {profile?.memberLimit ?? 0}</div>
+            <div className="text-xs text-slate-400">Member limit {memberLimitLabel}</div>
           </div>
           <div className="rounded-2xl border border-surface-border bg-surface-card/70 px-4 py-3">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Invite capacity</div>
@@ -425,6 +611,7 @@ export default function SettingsControlCenter() {
         eyebrow="Profile"
         title="User and business identity"
         description="Keep your public identity, auth source, and platform role in sync."
+        status={sectionStatus.profile}
       >
         <div className="grid gap-4 lg:grid-cols-[0.95fr,1.05fr]">
           <div className={`rounded-2xl border p-4 ${isDark ? 'bg-surface-darker/50 border-surface-border' : 'bg-white border-gray-200'}`}>
@@ -504,7 +691,7 @@ export default function SettingsControlCenter() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={handleSaveAll}
+                onClick={handleSaveProfile}
                 disabled={saving}
                 className="rounded-xl bg-primary-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -527,6 +714,7 @@ export default function SettingsControlCenter() {
         eyebrow="Workspace / Brand"
         title="Workspace and logo"
         description="Store your workspace name, business name, and logo URL so the sidebar and topbar can show the right brand."
+        status={sectionStatus.workspace}
       >
         <div className="grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
           <div className="space-y-4">
@@ -571,7 +759,7 @@ export default function SettingsControlCenter() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={handleSaveAll}
+                onClick={handleSaveWorkspace}
                 disabled={saving}
                 className="rounded-xl bg-primary-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -614,16 +802,17 @@ export default function SettingsControlCenter() {
         eyebrow="Plan & Billing"
         title="Current plan, billing status, and upgrades"
         description="Basic applies immediately when available. Premium and Pro route to the payment placeholder and stay in pending_payment until real Stripe checkout is wired."
+        status={sectionStatus.billing}
       >
         <div className="grid gap-4 xl:grid-cols-3">
           {planCards.map((plan) => (
             <div
               key={plan.id}
-              className={`rounded-3xl border p-5 ${plan.id === 'business_yearly' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-darker/50'}`}
+              className={`rounded-3xl border p-5 ${plan.id === 'pro' ? 'border-accent-gold/30 bg-accent-gold/5' : 'border-surface-border bg-surface-darker/50'}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm uppercase tracking-[0.2em] text-slate-500">{plan.planLabel}</div>
+                  <div className="text-sm uppercase tracking-[0.2em] text-slate-500">{plan.title}</div>
                   <div className="mt-1 text-2xl font-semibold text-white">{plan.priceDisplay}</div>
                 </div>
                 <div className="rounded-full border border-surface-border bg-surface-darker/70 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-400">
@@ -638,20 +827,15 @@ export default function SettingsControlCenter() {
 
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
                 <span className="rounded-full border border-surface-border px-3 py-1">Billing: {plan.billingStatus}</span>
-                <span className="rounded-full border border-surface-border px-3 py-1">Members: 1 admin / {plan.memberLimit} sub</span>
+                <span className="rounded-full border border-surface-border px-3 py-1">
+                  Members: 1 admin / {plan.memberLimit === -1 ? 'unlimited' : `${plan.memberLimit} sub`}
+                </span>
               </div>
 
               <button
                 type="button"
                 disabled={saving || plan.isCurrent}
-                onClick={() => {
-                  if (plan.id === 'starter') {
-                    applyBasicPlan()
-                    return
-                  }
-
-                  routeToPayment(plan.id)
-                }}
+                onClick={() => handlePaidPlanSelection(plan.id)}
                 className="mt-5 w-full rounded-xl bg-accent-gold px-4 py-3 font-semibold text-black transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {plan.buttonText}
@@ -685,6 +869,7 @@ export default function SettingsControlCenter() {
         eyebrow="Payment Methods"
         title="Payment method placeholders and Stripe status"
         description="Store only safe metadata here. No card numbers, no secret keys, no raw payment credentials."
+        status={sectionStatus.payments}
       >
         <div className="grid gap-4 xl:grid-cols-2">
           <div className={`rounded-2xl border p-4 ${isDark ? 'bg-surface-darker/50 border-surface-border' : 'bg-white border-gray-200'}`}>
@@ -775,7 +960,7 @@ export default function SettingsControlCenter() {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={handleSaveAll}
+                onClick={handleSavePayments}
                 disabled={saving}
                 className="rounded-xl bg-primary-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -798,6 +983,7 @@ export default function SettingsControlCenter() {
         eyebrow="Email Pipeline"
         title="Email provider and pipeline placeholders"
         description="Capture safe metadata for provider, sender address, and masked token info. Real sending needs a backend or Cloud Function."
+        status={sectionStatus.email}
       >
         <div className="grid gap-4 xl:grid-cols-[1fr,0.95fr]">
           <div className={`rounded-2xl border p-4 ${isDark ? 'bg-surface-darker/50 border-surface-border' : 'bg-white border-gray-200'}`}>
@@ -856,7 +1042,7 @@ export default function SettingsControlCenter() {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={handleSaveAll}
+                onClick={handleSaveEmail}
                 disabled={saving}
                 className="rounded-xl bg-primary-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -890,6 +1076,7 @@ export default function SettingsControlCenter() {
         eyebrow="API Connections"
         title="CRM, SQL, AWS, shipping, inventory, and webhooks"
         description="These are future-ready placeholders. Keep the config safe now and move secrets to a backend vault before production."
+        status={sectionStatus.integrations}
       >
         <div className="grid gap-4 xl:grid-cols-2">
           {Object.entries(integrationLabels).map(([key, label]) => (
@@ -906,6 +1093,17 @@ export default function SettingsControlCenter() {
               ]}
             />
           ))}
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={handleSaveIntegrations}
+            disabled={saving}
+            className="rounded-xl bg-primary-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Save integrations
+          </button>
         </div>
       </SectionCard>
 

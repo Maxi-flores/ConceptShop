@@ -1,38 +1,38 @@
 export const LICENSE_PLANS = [
   {
     id: 'starter',
-    title: 'Starter',
+    title: 'Basic',
     price: 'EUR0/month',
     priceDisplay: '€0/month',
-    details: '1 admin, basic workspace, starter features',
-    description: 'Perfect for exploring ConceptSHOP and launching your first workspace.',
+    details: '1 admin, up to 2 members, all prices exclude VAT',
+    description: 'A lightweight starting point for invite-only workspaces.',
     billingStatus: 'free',
-    memberLimit: 0,
-    badge: 'Launch for free',
+    memberLimit: 2,
+    badge: 'Basic • 2 Members',
     requiresPayment: false
   },
   {
-    id: 'team_monthly',
-    title: 'Team',
+    id: 'premium',
+    title: 'Premium',
     price: 'EUR6/month',
     priceDisplay: '€6/month',
-    details: '1 admin, up to 2 team members, collaboration tools',
-    description: 'For growing teams that need collaboration.',
-    billingStatus: 'active',
-    memberLimit: 2,
-    badge: 'Monthly billing',
+    details: '1 admin, up to 5 members, all prices exclude VAT',
+    description: 'For growing teams that need more room for members and workflows.',
+    billingStatus: 'pending_payment',
+    memberLimit: 5,
+    badge: 'Premium • 5 Members',
     requiresPayment: true
   },
   {
-    id: 'business_yearly',
-    title: 'Business',
+    id: 'pro',
+    title: 'Pro',
     price: 'EUR60/year',
     priceDisplay: '€60/year',
-    details: '1 admin, up to 2 team members, annual billing savings',
-    description: 'Lower annual cost for long-term growth.',
-    billingStatus: 'active',
-    memberLimit: 2,
-    badge: 'Save €12',
+    details: '1 admin, unlimited members, all prices exclude VAT',
+    description: 'The most flexible tier for larger workspaces and scale.',
+    billingStatus: 'pending_payment',
+    memberLimit: -1,
+    badge: 'Pro • Unlimited Members',
     requiresPayment: true
   }
 ]
@@ -83,12 +83,12 @@ export const normalizeLicensePlan = (licensePlan) => {
     return 'starter'
   }
 
-  if (licensePlan === 'team_monthly' || licensePlan === 'admin_monthly') {
-    return 'team_monthly'
+  if (licensePlan === 'premium' || licensePlan === 'team_monthly' || licensePlan === 'admin_monthly') {
+    return 'premium'
   }
 
-  if (licensePlan === 'business_yearly' || licensePlan === 'admin_yearly') {
-    return 'business_yearly'
+  if (licensePlan === 'pro' || licensePlan === 'business_yearly' || licensePlan === 'admin_yearly') {
+    return 'pro'
   }
 
   return 'starter'
