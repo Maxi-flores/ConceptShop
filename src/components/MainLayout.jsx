@@ -30,6 +30,10 @@ export default function MainLayout({ children }) {
   const { profile, user, refreshProfile } = useAuth()
   const location = useLocation()
   const billingPending = profile?.billingStatus === 'pending_payment'
+  const routeKey = useMemo(() => {
+    return Object.entries(TAB_ROUTE_MAP).find(([, route]) => location.pathname.startsWith(route))?.[0] || null
+  }, [location.pathname])
+  const billingLocked = billingPending && routeKey !== 'settings'
   const tutorialMap = useMemo(() => getTutorialMap(), [])
 
   useEffect(() => {
@@ -41,14 +45,12 @@ export default function MainLayout({ children }) {
   }, [profile?.uid, profile?.onboardingCompleted])
 
   useEffect(() => {
-    const routeKey = Object.entries(TAB_ROUTE_MAP).find(([, route]) => location.pathname.startsWith(route))?.[0] || null
-
     if (!routeKey || !profile) {
       setActiveHintKey(null)
       return
     }
 
-    const completedTutorials = profile.completedTutorials || {}
+    const completedTutorials = profile?.completedTutorials || {}
     if (completedTutorials[routeKey]) {
       setActiveHintKey(null)
       return
@@ -113,7 +115,7 @@ export default function MainLayout({ children }) {
 
       <div className="flex-1 flex flex-col">
         <TopBar />
-        <main className={`relative flex-1 overflow-y-auto p-6 ${billingPending ? 'pointer-events-none opacity-50' : ''}`}>
+        <main className={`relative flex-1 overflow-y-auto p-6 ${billingLocked ? 'pointer-events-none opacity-50' : ''}`}>
           {children}
 
           {activeHintKey && tutorialMap[activeHintKey] && (
@@ -132,7 +134,7 @@ export default function MainLayout({ children }) {
             </div>
           )}
 
-          {billingPending && (
+          {billingLocked && (
             <div className="pointer-events-auto absolute inset-6 rounded-2xl border border-accent-gold/20 bg-surface-darker/95 backdrop-blur-md flex items-center justify-center p-6">
               <div className="max-w-lg text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-gold/20 flex items-center justify-center">
@@ -142,7 +144,7 @@ export default function MainLayout({ children }) {
                 </div>
                 <h2 className="text-2xl font-bold mb-2">Payment pending</h2>
                 <p className="text-slate-300 mb-4">
-                  Payment integration coming next. Continue in pending_payment mode.
+                  Stripe checkout is not connected yet. This plan has been saved as pending payment.
                 </p>
                 <p className="text-sm text-slate-400">
                   Your account is active, but dashboard and team-member features are locked until billing is connected.

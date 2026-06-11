@@ -14,12 +14,18 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 }
 
-const missingFirebaseVars = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value)
-  .map(([key]) => key)
+const requiredFirebaseVars = ['apiKey', 'authDomain', 'projectId']
+const optionalFirebaseVars = ['storageBucket', 'messagingSenderId', 'appId', 'measurementId']
 
-if (missingFirebaseVars.length > 0 && typeof console !== 'undefined') {
-  console.error('Missing Firebase environment variables:', missingFirebaseVars.join(', '))
+const missingRequiredFirebaseVars = requiredFirebaseVars.filter((key) => !firebaseConfig[key])
+const missingOptionalFirebaseVars = optionalFirebaseVars.filter((key) => !firebaseConfig[key])
+
+if (missingRequiredFirebaseVars.length > 0 && typeof console !== 'undefined') {
+  console.error('Missing required Firebase environment variables:', missingRequiredFirebaseVars.join(', '))
+}
+
+if (missingOptionalFirebaseVars.length > 0 && typeof console !== 'undefined') {
+  console.warn('Missing optional Firebase environment variables:', missingOptionalFirebaseVars.join(', '))
 }
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
@@ -27,6 +33,9 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null
+export const analytics =
+  typeof window !== 'undefined' && firebaseConfig.appId && firebaseConfig.measurementId
+    ? getAnalytics(app)
+    : null
 
 export default app

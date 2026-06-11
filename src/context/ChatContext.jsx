@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import {
   subscribeToMessages,
   subscribeToRooms,
@@ -9,12 +9,13 @@ import {
   markMessagesAsRead
 } from '../firebase/chat'
 import { useAuth } from './AuthContext'
-import { getUserDisplayName } from '../utils/profile'
+import { getUserDisplayName, normalizeUserProfile } from '../utils/profile'
 
 const ChatContext = createContext(null)
 
 export function ChatProvider({ children }) {
   const { user, profile } = useAuth()
+  const safeProfile = useMemo(() => normalizeUserProfile(profile), [profile])
   const [rooms, setRooms] = useState([])
   const [currentRoom, setCurrentRoom] = useState(null)
   const [messages, setMessages] = useState([])
@@ -77,14 +78,14 @@ export function ChatProvider({ children }) {
     })
 
     // Set current user as online
-    setUserPresence(user.uid, getUserDisplayName(profile, user), 'online')
+    setUserPresence(user.uid, getUserDisplayName(safeProfile, user), 'online')
 
     // Set offline on unmount
     return () => {
-      setUserPresence(user.uid, getUserDisplayName(profile, user), 'offline')
+      setUserPresence(user.uid, getUserDisplayName(safeProfile, user), 'offline')
       unsubscribe()
     }
-  }, [user, profile])
+  }, [user, safeProfile])
 
   // Send message
   const sendMessage = useCallback(async (content, type = 'text') => {
@@ -94,7 +95,7 @@ export function ChatProvider({ children }) {
       await sendChatMessage(
         currentRoom.id,
         user.uid,
-        getUserDisplayName(profile, user),
+        getUserDisplayName(safeProfile, user),
         content,
         type
       )
@@ -102,7 +103,7 @@ export function ChatProvider({ children }) {
       console.error('Error sending message:', error)
       throw error
     }
-  }, [user, profile, currentRoom])
+  }, [user, safeProfile, currentRoom])
 
   // Select room
   const selectRoom = useCallback((room) => {
